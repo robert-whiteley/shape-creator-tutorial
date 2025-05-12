@@ -13,6 +13,47 @@ let lastShapeCreationTime = 0;
 const shapeCreationCooldown = 1000;
 const moonOrbitData = new Map(); // Map from earth group to {pivot, moon}
 
+const planetData = [
+  { name: 'sun', texture: 'textures/sun.jpg', size: 1.2 * 0.8 },
+  { name: 'mercury', texture: 'textures/mercury.jpg', size: 0.25 * 0.8 },
+  { name: 'venus', texture: 'textures/venus.jpg', size: 0.4 * 0.8 },
+  { name: 'earth', texture: 'textures/earth.jpg', size: 0.5 * 0.8 },
+  { name: 'mars', texture: 'textures/mars.jpg', size: 0.35 * 0.8 },
+  { name: 'jupiter', texture: 'textures/jupiter.jpg', size: 0.9 * 0.8 },
+  { name: 'saturn', texture: 'textures/saturn.jpg', size: 0.8 * 0.8 },
+  { name: 'uranus', texture: 'textures/uranus.jpg', size: 0.6 * 0.8 },
+  { name: 'neptune', texture: 'textures/neptune.jpg', size: 0.6 * 0.8 },
+  { name: 'pluto', texture: 'textures/pluto.jpg', size: 0.18 * 0.8 }
+];
+
+function createPlanet({ texture, size, name }, position) {
+  const geometry = new THREE.SphereGeometry(size, 32, 32);
+  const group = new THREE.Group();
+  const planetTexture = new THREE.TextureLoader().load(texture);
+  const material = new THREE.MeshBasicMaterial({ map: planetTexture });
+  const fillMesh = new THREE.Mesh(geometry, material);
+  const wireframeMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true });
+  const wireframeMesh = new THREE.Mesh(geometry, wireframeMaterial);
+  group.add(fillMesh);
+  group.add(wireframeMesh);
+  group.position.copy(position);
+  scene.add(group);
+  // If this is earth, add a moon
+  if (name === 'earth') {
+    const moonPivot = new THREE.Group();
+    group.add(moonPivot);
+    const moonGeometry = new THREE.SphereGeometry(0.18, 32, 32);
+    const moonTexture = new THREE.TextureLoader().load('textures/moon.jpg');
+    const moonMaterial = new THREE.MeshBasicMaterial({ map: moonTexture });
+    const moonMesh = new THREE.Mesh(moonGeometry, moonMaterial);
+    moonMesh.position.set(0.8, 0, 0);
+    moonPivot.add(moonMesh);
+    moonOrbitData.set(group, { pivot: moonPivot, moon: moonMesh });
+  }
+  shapes.push(group);
+  return group;
+}
+
 const initThree = () => {
   scene = new THREE.Scene();
   camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -22,6 +63,16 @@ const initThree = () => {
   document.getElementById('three-canvas').appendChild(renderer.domElement);
   const light = new THREE.AmbientLight(0xffffff, 1);
   scene.add(light);
+  // Reverse the planet order so the sun is on the far right
+  const reversedPlanets = [...planetData].reverse();
+  // Calculate dynamic spacing based on window width and number of planets
+  const totalPlanets = reversedPlanets.length;
+  const viewWidth = 8; // World units to fit in camera view (adjust as needed)
+  const spacing = (viewWidth / (totalPlanets - 1)) * 1.3;
+  const startX = -((spacing * (totalPlanets - 1)) / 2);
+  reversedPlanets.forEach((planet, i) => {
+    createPlanet(planet, new THREE.Vector3(startX + i * spacing, 0, 0));
+  });
   animate();
 };
 
@@ -47,57 +98,6 @@ const getNextNeonColor = () => {
     const color = neonColors[colorIndex];
     colorIndex = (colorIndex + 1) % neonColors.length;
     return color;
-};
-
-const createRandomShape = (position) => {
-  // Only create a sphere, randomly one of the planets
-  const geometry = new THREE.SphereGeometry(0.5, 32, 32);
-  const group = new THREE.Group();
-
-  // Randomly choose a planet texture (mars, mercury, venus, jupiter, saturn, uranus, neptune, pluto)
-  const textures = [
-    'textures/mars.jpg',
-    'textures/mercury.jpg',
-    'textures/venus.jpg',
-    'textures/jupiter.jpg',
-    'textures/saturn.jpg',
-    'textures/uranus.jpg',
-    'textures/neptune.jpg',
-    'textures/pluto.jpg',
-    'textures/earth.jpg'
-  ];
-  const textureUrl = textures[Math.floor(Math.random() * textures.length)];
-  const planetTexture = new THREE.TextureLoader().load(textureUrl);
-  const material = new THREE.MeshBasicMaterial({ map: planetTexture });
-  const fillMesh = new THREE.Mesh(geometry, material);
-
-  const wireframeMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true });
-  const wireframeMesh = new THREE.Mesh(geometry, wireframeMaterial);
-
-  group.add(fillMesh);
-  group.add(wireframeMesh);
-  group.position.copy(position);
-  scene.add(group);
-
-  // If this is earth, add a moon
-  if (textureUrl === 'textures/earth.jpg') {
-    // Create a pivot for the moon to orbit around the earth
-    const moonPivot = new THREE.Group();
-    group.add(moonPivot);
-    // Create the moon mesh
-    const moonGeometry = new THREE.SphereGeometry(0.18, 32, 32);
-    const moonTexture = new THREE.TextureLoader().load('textures/moon.jpg');
-    const moonMaterial = new THREE.MeshBasicMaterial({ map: moonTexture });
-    const moonMesh = new THREE.Mesh(moonGeometry, moonMaterial);
-    // Position the moon at a distance from earth
-    moonMesh.position.set(1, 0, 0);
-    moonPivot.add(moonMesh);
-    // Store the pivot and moon for animation
-    moonOrbitData.set(group, { pivot: moonPivot, moon: moonMesh });
-  }
-
-  shapes.push(group);
-  return group;
 };
 
 const get3DCoords = (normX, normY) => {
