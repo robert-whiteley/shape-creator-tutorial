@@ -17,4 +17,5 @@ export function initSpeedControls({ speedSlider, speedValue, onSpeedChange, defa
     updateSpeedDisplay();
   });
   updateSpeedDisplay(); // Set initial display
+  if (onSpeedChange) onSpeedChange(parseFloat(speedSlider.value)); // Set initial speed
 } 
