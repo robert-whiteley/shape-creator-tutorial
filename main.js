@@ -9,6 +9,7 @@ import {
   createPlanet,
   daysSinceJ2000
 } from './three/solarSystem.js';
+import { setupHands, isPinch, areIndexFingersClose } from './gestures/hands.js';
 
 let video = document.getElementById('webcam');
 let canvas = document.getElementById('canvas');
@@ -51,16 +52,6 @@ const get3DCoords = (normX, normY) => {
   return new THREE.Vector3(x, y, 0);
 };
 
-const isPinch = (landmarks) => {
-  const d = (a, b) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
-  return d(landmarks[4], landmarks[8]) < 0.06;
-};
-
-const areIndexFingersClose = (l, r) => {
-  const d = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
-  return d(l[8], r[8]) < 0.12;
-};
-
 const findNearestShape = (position) => {
   let minDist = Infinity;
   let closest = null;
@@ -91,10 +82,7 @@ const isInRecycleBinZone = (position) => {
   return adjustedX >= binLeft && adjustedX <= binRight && screenY >= binTop && screenY <= binBottom;
 };
 
-const hands = new Hands({ locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
-hands.setOptions({ maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.7, minTrackingConfidence: 0.7 });
-
-hands.onResults(results => {
+function handleHandResults(results) {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   for (const landmarks of results.multiHandLandmarks) {
@@ -162,7 +150,9 @@ hands.onResults(results => {
       }
     }
   }
-});
+}
+
+let hands = setupHands({ onResults: handleHandResults });
 
 const initCamera = async () => {
   const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 } });
