@@ -22,6 +22,9 @@ let lastSolarSystemRotationX = 0;
 let lastTwoHandMidX = null;
 let lastSolarSystemRotationZ = 0;
 let planetOrbitData = new Map(); // Map from planet group to its pivot
+let speedMultiplier = 1;
+const speedSlider = document.getElementById('speed-slider');
+const speedValue = document.getElementById('speed-value');
 
 const planetData = [
   { name: 'sun', texture: 'textures/sun.jpg', size: 1.2 * 0.8 },
@@ -127,12 +130,12 @@ const animate = () => {
   requestAnimationFrame(animate);
   shapes.forEach(shape => {
     if (shape !== selectedShape) {
-      shape.rotation.y += 0.01;
+      shape.rotation.y += 0.01 * speedMultiplier;
     }
     // Animate moon orbit if this is an earth with a moon
     if (moonOrbitData.has(shape)) {
       const { pivot } = moonOrbitData.get(shape);
-      pivot.rotation.y += 0.03; // Moon orbit speed
+      pivot.rotation.y += 0.03 * speedMultiplier; // Moon orbit speed
     }
     // Animate planet orbit if it has a pivot (not the sun)
     if (planetOrbitData.has(shape)) {
@@ -140,7 +143,7 @@ const animate = () => {
       // Each planet can have a different speed (closer = faster)
       const baseSpeed = 0.01;
       const speed = baseSpeed * (1 + 0.5 * Math.random()); // You can make this deterministic if you want
-      pivot.rotation.y += baseSpeed + 0.01 * Math.sin(Date.now() * 0.0001 + shapes.indexOf(shape));
+      pivot.rotation.y += (baseSpeed + 0.01 * Math.sin(Date.now() * 0.0001 + shapes.indexOf(shape))) * speedMultiplier;
     }
   });
   renderer.render(scene, camera);
@@ -286,6 +289,13 @@ const initCamera = async () => {
     height: video.videoHeight
   }).start();
 };
+
+if (speedSlider && speedValue) {
+  speedSlider.addEventListener('input', () => {
+    speedMultiplier = parseFloat(speedSlider.value);
+    speedValue.textContent = speedMultiplier.toFixed(2) + 'x';
+  });
+}
 
 initThree();
 initCamera();
