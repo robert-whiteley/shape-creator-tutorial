@@ -51,11 +51,19 @@ const createRandomShape = (position) => {
     new THREE.ConeGeometry(0.5, 1, 32),
     new THREE.CylinderGeometry(0.5, 0.5, 1, 32)
   ];
-  const geometry = geometries[Math.floor(Math.random() * geometries.length)];
+  const geometryIndex = Math.floor(Math.random() * geometries.length);
+  const geometry = geometries[geometryIndex];
   const color = getNextNeonColor();
   const group = new THREE.Group();
 
-  const material = new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: 0.5 });
+  let material;
+  if (geometry instanceof THREE.SphereGeometry) {
+    // Use an Earth texture for the sphere (CORS-enabled)
+    const earthTexture = new THREE.TextureLoader().load('https://threejs.org/examples/textures/land_ocean_ice_cloud_2048.jpg');
+    material = new THREE.MeshBasicMaterial({ map: earthTexture });
+  } else {
+    material = new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: 0.5 });
+  }
   const fillMesh = new THREE.Mesh(geometry, material);
 
   const wireframeMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true });
