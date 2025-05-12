@@ -206,7 +206,6 @@ hands.setOptions({ maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0
 
 hands.onResults(results => {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  const recycleBin = document.getElementById('recycle-bin');
 
   for (const landmarks of results.multiHandLandmarks) {
     const drawCircle = (landmark) => {
