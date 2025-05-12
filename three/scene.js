@@ -28,9 +28,19 @@ export function initThree({
   camera.position.z = 5;
   renderer = new THREE.WebGLRenderer({ alpha: true });
   renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.shadowMap.enabled = true;
   document.getElementById('three-canvas').appendChild(renderer.domElement);
-  const light = new THREE.AmbientLight(0xffffff, 1);
-  scene.add(light);
+  // Add lights
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.3);
+  scene.add(ambientLight);
+  // Add a shadow-casting PointLight at the sun's position
+  const sunLight = new THREE.PointLight(0xffffff, 1.2, 100);
+  sunLight.position.set(0, 0, 0); // Sun is at the origin
+  sunLight.castShadow = true;
+  sunLight.shadow.mapSize.width = 1024;
+  sunLight.shadow.mapSize.height = 1024;
+  sunLight.shadow.bias = -0.005;
+  scene.add(sunLight);
   // Add solar system group
   scene.add(solarSystemGroup);
   // Add planets and orbits
@@ -39,31 +49,29 @@ export function initThree({
   const viewWidth = 8;
   const spacing = (viewWidth / (totalPlanets - 1)) * 1.3;
   const startX = -((spacing * (totalPlanets - 1)) / 2);
-  let sunGroup = null;
   const days = daysSinceJ2000();
   reversedPlanets.forEach((planet, i) => {
+    if (planet.name === 'sun') {
+      // The sun is only a light, not a mesh
+      return;
+    }
     const pos = new THREE.Vector3(startX + i * spacing, 0, 0);
     const planetGroup = createPlanet(planet, pos.clone(), shapes);
-    if (planet.name === 'sun') {
-      planetGroup.position.set(0, 0, 0);
-      solarSystemGroup.add(planetGroup);
-      sunGroup = planetGroup;
-    } else {
-      const pivot = new THREE.Group();
-      pivot.position.set(0, 0, 0);
-      planetGroup.position.copy(pos.clone().sub(new THREE.Vector3(startX + (totalPlanets-1) * spacing, 0, 0)));
-      pivot.add(planetGroup);
-      const period = planetPhysicalData[planet.name]?.orbit;
-      if (period && period > 0) {
-        const fraction = (days / period) % 1;
-        pivot.rotation.y = fraction * 2 * Math.PI;
-      }
-      solarSystemGroup.add(pivot);
-      planetOrbitData.set(planetGroup, pivot);
-      const orbitRadius = planetGroup.position.length();
-      const orbitLine = createOrbitLine(orbitRadius, 128, 0xffffff, 0.2);
-      solarSystemGroup.add(orbitLine);
+    if (!planetGroup) return;
+    const pivot = new THREE.Group();
+    pivot.position.set(0, 0, 0);
+    planetGroup.position.copy(pos.clone().sub(new THREE.Vector3(startX + (totalPlanets-1) * spacing, 0, 0)));
+    pivot.add(planetGroup);
+    const period = planetPhysicalData[planet.name]?.orbit;
+    if (period && period > 0) {
+      const fraction = (days / period) % 1;
+      pivot.rotation.y = fraction * 2 * Math.PI;
     }
+    solarSystemGroup.add(pivot);
+    planetOrbitData.set(planetGroup, pivot);
+    const orbitRadius = planetGroup.position.length();
+    const orbitLine = createOrbitLine(orbitRadius, 128, 0xffffff, 0.2);
+    solarSystemGroup.add(orbitLine);
   });
   animateCallback();
 }

@@ -56,11 +56,17 @@ export function createOrbitLine(radius, segments = 128, color = 0xffffff, opacit
 }
 
 export function createPlanet({ texture, size, name }, position, shapes) {
+  if (name === 'sun') {
+    // Do not create a mesh for the sun; it will be represented by a DirectionalLight
+    return null;
+  }
   const geometry = new THREE.SphereGeometry(size, 32, 32);
   const group = new THREE.Group();
   const planetTexture = new THREE.TextureLoader().load(texture);
-  const material = new THREE.MeshBasicMaterial({ map: planetTexture });
+  const material = new THREE.MeshStandardMaterial({ map: planetTexture });
   const fillMesh = new THREE.Mesh(geometry, material);
+  fillMesh.castShadow = true;
+  fillMesh.receiveShadow = true;
   group.add(fillMesh);
   group.position.copy(position);
   // If this is earth, add a moon
@@ -69,8 +75,10 @@ export function createPlanet({ texture, size, name }, position, shapes) {
     group.add(moonPivot);
     const moonGeometry = new THREE.SphereGeometry(0.18 * 0.8, 32, 32);
     const moonTexture = new THREE.TextureLoader().load('textures/moon.jpg');
-    const moonMaterial = new THREE.MeshBasicMaterial({ map: moonTexture });
+    const moonMaterial = new THREE.MeshStandardMaterial({ map: moonTexture });
     const moonMesh = new THREE.Mesh(moonGeometry, moonMaterial);
+    moonMesh.castShadow = true;
+    moonMesh.receiveShadow = true;
     moonMesh.position.set(0.8, 0, 0);
     moonPivot.add(moonMesh);
     moonOrbitData.set(group, { pivot: moonPivot, moon: moonMesh });
