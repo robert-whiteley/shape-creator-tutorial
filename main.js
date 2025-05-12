@@ -86,10 +86,7 @@ function createPlanet({ texture, size, name }, position) {
   const planetTexture = new THREE.TextureLoader().load(texture);
   const material = new THREE.MeshBasicMaterial({ map: planetTexture });
   const fillMesh = new THREE.Mesh(geometry, material);
-  const wireframeMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true });
-  const wireframeMesh = new THREE.Mesh(geometry, wireframeMaterial);
   group.add(fillMesh);
-  group.add(wireframeMesh);
   group.position.copy(position);
   // If this is earth, add a moon
   if (name === 'earth') {
