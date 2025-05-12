@@ -17,6 +17,8 @@ let lastTwoHandAngle = null;
 let lastSolarSystemRotationY = 0;
 let lastTwoHandDistance = null;
 let lastSolarSystemScale = 1;
+let lastTwoHandMidY = null;
+let lastSolarSystemRotationX = 0;
 let planetOrbitData = new Map(); // Map from planet group to its pivot
 
 const planetData = [
@@ -196,7 +198,7 @@ hands.onResults(results => {
     drawCircle(landmarks[8]); // Index tip
   }
 
-  // Two-hand pinch for rotation and scaling
+  // Two-hand pinch for rotation (Y and X) and scaling
   if (results.multiHandLandmarks.length === 2) {
     const [l, r] = results.multiHandLandmarks;
     const leftPinch = isPinch(l);
@@ -207,15 +209,21 @@ hands.onResults(results => {
       const dy = r[8].y - l[8].y;
       const angle = Math.atan2(dy, dx);
       const distance = Math.hypot(dx, dy);
-      if (lastTwoHandAngle === null || lastTwoHandDistance === null) {
+      const midY = (l[8].y + r[8].y) / 2;
+      if (lastTwoHandAngle === null || lastTwoHandDistance === null || lastTwoHandMidY === null) {
         lastTwoHandAngle = angle;
         lastSolarSystemRotationY = solarSystemGroup.rotation.y;
         lastTwoHandDistance = distance;
         lastSolarSystemScale = solarSystemGroup.scale.x;
+        lastTwoHandMidY = midY;
+        lastSolarSystemRotationX = solarSystemGroup.rotation.x;
       } else {
-        // Rotation
+        // Rotation Y
         const deltaAngle = angle - lastTwoHandAngle;
         solarSystemGroup.rotation.y = lastSolarSystemRotationY - deltaAngle;
+        // Rotation X (up/down)
+        const deltaMidY = midY - lastTwoHandMidY;
+        solarSystemGroup.rotation.x = lastSolarSystemRotationX + deltaMidY * 4.0; // Sensitivity
         // Scaling
         const scale = Math.max(0.2, Math.min(3, lastSolarSystemScale * (distance / lastTwoHandDistance)));
         solarSystemGroup.scale.set(scale, scale, scale);
@@ -225,6 +233,7 @@ hands.onResults(results => {
   }
   lastTwoHandAngle = null;
   lastTwoHandDistance = null;
+  lastTwoHandMidY = null;
   // One-hand pinch for panning
   if (results.multiHandLandmarks.length > 0) {
     for (const landmarks of results.multiHandLandmarks) {

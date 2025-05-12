@@ -64,3 +64,19 @@ a {
   background-color: rgba(255, 255, 255, 0.5);
   padding: 10px;
 }
+
+#three-canvas::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.55); /* dark but not fully black */
+  z-index: 1;
+  pointer-events: none;
+}
+#three-canvas > canvas {
+  position: relative;
+  z-index: 2;
+}
