@@ -12,6 +12,9 @@ let shapeCreatedThisPinch = false;
 let lastShapeCreationTime = 0;
 const shapeCreationCooldown = 1000;
 const moonOrbitData = new Map(); // Map from earth group to {pivot, moon}
+let solarSystemGroup = null;
+let lastTwoHandAngle = null;
+let lastSolarSystemRotationY = 0;
 
 const planetData = [
   { name: 'sun', texture: 'textures/sun.jpg', size: 1.2 * 0.8 },
@@ -63,15 +66,18 @@ const initThree = () => {
   document.getElementById('three-canvas').appendChild(renderer.domElement);
   const light = new THREE.AmbientLight(0xffffff, 1);
   scene.add(light);
+  // Create a group for the whole solar system
+  solarSystemGroup = new THREE.Group();
+  scene.add(solarSystemGroup);
   // Reverse the planet order so the sun is on the far right
   const reversedPlanets = [...planetData].reverse();
-  // Calculate dynamic spacing based on window width and number of planets
   const totalPlanets = reversedPlanets.length;
-  const viewWidth = 8; // World units to fit in camera view (adjust as needed)
+  const viewWidth = 8;
   const spacing = (viewWidth / (totalPlanets - 1)) * 1.3;
   const startX = -((spacing * (totalPlanets - 1)) / 2);
   reversedPlanets.forEach((planet, i) => {
-    createPlanet(planet, new THREE.Vector3(startX + i * spacing, 0, 0));
+    const planetGroup = createPlanet(planet, new THREE.Vector3(startX + i * spacing, 0, 0));
+    solarSystemGroup.add(planetGroup);
   });
   animate();
 };
@@ -164,83 +170,37 @@ hands.onResults(results => {
     drawCircle(landmarks[8]); // Index tip
   }
 
-  // Existing shape interaction and gesture logic...
+  // Two-hand pinch for rotation
   if (results.multiHandLandmarks.length === 2) {
     const [l, r] = results.multiHandLandmarks;
     const leftPinch = isPinch(l);
     const rightPinch = isPinch(r);
-    const indexesClose = areIndexFingersClose(l, r);
-
     if (leftPinch && rightPinch) {
-      const left = l[8];
-      const right = r[8];
-      const centerX = (left.x + right.x) / 2;
-      const centerY = (left.y + right.y) / 2;
-      const distance = Math.hypot(left.x - right.x, left.y - right.y);
-
-      if (!isPinching) {
-        const now = Date.now();
-        if (!shapeCreatedThisPinch && indexesClose && now - lastShapeCreationTime > shapeCreationCooldown) {
-          currentShape = createRandomShape(get3DCoords(centerX, centerY));
-          lastShapeCreationTime = now;
-          shapeCreatedThisPinch = true;
-          originalDistance = distance;
-        }
-      } else if (currentShape && originalDistance) {
-        shapeScale = distance / originalDistance;
-        currentShape.scale.set(shapeScale, shapeScale, shapeScale);
+      // Calculate angle between the two index fingers
+      const dx = r[8].x - l[8].x;
+      const dy = r[8].y - l[8].y;
+      const angle = Math.atan2(dy, dx);
+      if (lastTwoHandAngle === null) {
+        lastTwoHandAngle = angle;
+        lastSolarSystemRotationY = solarSystemGroup.rotation.y;
+      } else {
+        const delta = angle - lastTwoHandAngle;
+        solarSystemGroup.rotation.y = lastSolarSystemRotationY - delta;
       }
-      isPinching = true;
-      recycleBin.classList.remove('active');
       return;
     }
   }
-
-  isPinching = false;
-  shapeCreatedThisPinch = false;
-  originalDistance = null;
-  currentShape = null;
-
+  lastTwoHandAngle = null;
+  // One-hand pinch for panning
   if (results.multiHandLandmarks.length > 0) {
     for (const landmarks of results.multiHandLandmarks) {
-      const indexTip = landmarks[8];
-      const position = get3DCoords(indexTip.x, indexTip.y);
-
       if (isPinch(landmarks)) {
-        if (!selectedShape) {
-          selectedShape = findNearestShape(position);
-        }
-        if (selectedShape) {
-          selectedShape.position.copy(position);
-
-          const inBin = isInRecycleBinZone(selectedShape.position);
-          selectedShape.children.forEach(child => {
-            if (child.material && child.material.wireframe) {
-              child.material.color.set(inBin ? 0xff0000 : 0xffffff);
-            }
-          });
-          if (inBin) {
-            recycleBin.classList.add('active');
-          } else {
-            recycleBin.classList.remove('active');
-          }
-        }
-      } else {
-        if (selectedShape && isInRecycleBinZone(selectedShape.position)) {
-          scene.remove(selectedShape);
-          shapes = shapes.filter(s => s !== selectedShape);
-        }
-        selectedShape = null;
-        recycleBin.classList.remove('active');
+        const indexTip = landmarks[8];
+        const position = get3DCoords(indexTip.x, indexTip.y);
+        solarSystemGroup.position.copy(position);
+        break;
       }
     }
-  } else {
-    if (selectedShape && isInRecycleBinZone(selectedShape.position)) {
-      scene.remove(selectedShape);
-      shapes = shapes.filter(s => s !== selectedShape);
-    }
-    selectedShape = null;
-    recycleBin.classList.remove('active');
   }
 });
 
