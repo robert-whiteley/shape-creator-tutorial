@@ -39,6 +39,35 @@ const planetData = [
   { name: 'pluto', texture: 'textures/pluto.jpg', size: 0.18 * 0.8 }
 ];
 
+// Orbital and rotation periods in Earth days
+const planetPhysicalData = {
+  mercury:  { orbit: 87.97,   rotation: 58.646 },
+  venus:    { orbit: 224.70,  rotation: -243.025 }, // retrograde
+  earth:    { orbit: 365.26,  rotation: 0.997 },
+  mars:     { orbit: 686.98,  rotation: 1.026 },
+  jupiter:  { orbit: 4332.59, rotation: 0.4135 },
+  saturn:   { orbit: 10759.22,rotation: 0.444 },
+  uranus:   { orbit: 30688.5, rotation: -0.718 }, // retrograde
+  neptune:  { orbit: 60182,   rotation: 0.671 },
+  pluto:    { orbit: 90560,   rotation: -6.387 }, // retrograde
+  sun:      { orbit: 0,       rotation: 25.0 } // sun's rotation ~25 days, no orbit
+};
+
+// Precompute normalized angular speeds (radians per animation frame, relative to Earth)
+const planetSpeeds = {};
+Object.keys(planetPhysicalData).forEach(name => {
+  const { orbit, rotation } = planetPhysicalData[name];
+  // Earth's year = 365.26 days, day = 0.997 days
+  // For animation, 1 Earth year = 2*PI radians in 365.26 days
+  // We'll use a time scale: 1 animation second = 1 Earth day
+  planetSpeeds[name] = {
+    orbit: orbit > 0 ? (2 * Math.PI) / orbit : 0, // radians per Earth day
+    rotation: (2 * Math.PI) / rotation // radians per Earth day (can be negative)
+  };
+});
+
+let lastAnimationTime = Date.now();
+
 function createOrbitLine(radius, segments = 128, color = 0xffffff, opacity = 0.25) {
   const geometry = new THREE.BufferGeometry();
   const positions = [];
@@ -128,22 +157,33 @@ const initThree = () => {
 
 const animate = () => {
   requestAnimationFrame(animate);
+  const now = Date.now();
+  const deltaDays = ((now - lastAnimationTime) / 1000) * speedMultiplier; // 1s = 1 Earth day
+  lastAnimationTime = now;
   shapes.forEach(shape => {
+    // Find planet name
+    let planetName = null;
+    for (const planet of planetData) {
+      if (shape.children[0] && shape.children[0].material && shape.children[0].material.map && shape.children[0].material.map.image && shape.children[0].material.map.image.src && shape.children[0].material.map.image.src.includes(planet.texture)) {
+        planetName = planet.name;
+        break;
+      }
+    }
+    if (!planetName) planetName = 'sun'; // fallback
+    // Rotation (planet spin)
     if (shape !== selectedShape) {
-      shape.rotation.y += 0.01 * speedMultiplier;
+      shape.rotation.y += (planetSpeeds[planetName]?.rotation || 0) * deltaDays;
     }
     // Animate moon orbit if this is an earth with a moon
     if (moonOrbitData.has(shape)) {
       const { pivot } = moonOrbitData.get(shape);
-      pivot.rotation.y += 0.03 * speedMultiplier; // Moon orbit speed
+      // Moon's orbital period: 27.32 days
+      pivot.rotation.y += (2 * Math.PI / 27.32) * deltaDays;
     }
     // Animate planet orbit if it has a pivot (not the sun)
     if (planetOrbitData.has(shape)) {
       const pivot = planetOrbitData.get(shape);
-      // Each planet can have a different speed (closer = faster)
-      const baseSpeed = 0.01;
-      const speed = baseSpeed * (1 + 0.5 * Math.random()); // You can make this deterministic if you want
-      pivot.rotation.y += (baseSpeed + 0.01 * Math.sin(Date.now() * 0.0001 + shapes.indexOf(shape))) * speedMultiplier;
+      pivot.rotation.y += (planetSpeeds[planetName]?.orbit || 0) * deltaDays;
     }
   });
   renderer.render(scene, camera);
