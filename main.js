@@ -19,6 +19,8 @@ let lastTwoHandDistance = null;
 let lastSolarSystemScale = 1;
 let lastTwoHandMidY = null;
 let lastSolarSystemRotationX = 0;
+let lastTwoHandMidX = null;
+let lastSolarSystemRotationZ = 0;
 let planetOrbitData = new Map(); // Map from planet group to its pivot
 
 const planetData = [
@@ -217,7 +219,7 @@ hands.onResults(results => {
     drawCircle(landmarks[8]); // Index tip
   }
 
-  // Two-hand pinch for rotation (Y and X) and scaling
+  // Two-hand pinch for rotation (Y, X, Z) and scaling
   if (results.multiHandLandmarks.length === 2) {
     const [l, r] = results.multiHandLandmarks;
     const leftPinch = isPinch(l);
@@ -229,13 +231,16 @@ hands.onResults(results => {
       const angle = Math.atan2(dy, dx);
       const distance = Math.hypot(dx, dy);
       const midY = (l[8].y + r[8].y) / 2;
-      if (lastTwoHandAngle === null || lastTwoHandDistance === null || lastTwoHandMidY === null) {
+      const midX = (l[8].x + r[8].x) / 2;
+      if (lastTwoHandAngle === null || lastTwoHandDistance === null || lastTwoHandMidY === null || lastTwoHandMidX === null) {
         lastTwoHandAngle = angle;
         lastSolarSystemRotationY = solarSystemGroup.rotation.y;
         lastTwoHandDistance = distance;
         lastSolarSystemScale = solarSystemGroup.scale.x;
         lastTwoHandMidY = midY;
         lastSolarSystemRotationX = solarSystemGroup.rotation.x;
+        lastTwoHandMidX = midX;
+        lastSolarSystemRotationZ = solarSystemGroup.rotation.z;
       } else {
         // Rotation Y
         const deltaAngle = angle - lastTwoHandAngle;
@@ -243,6 +248,9 @@ hands.onResults(results => {
         // Rotation X (up/down)
         const deltaMidY = midY - lastTwoHandMidY;
         solarSystemGroup.rotation.x = lastSolarSystemRotationX + deltaMidY * 4.0; // Sensitivity
+        // Rotation Z (sideways)
+        const deltaMidX = midX - lastTwoHandMidX;
+        solarSystemGroup.rotation.z = lastSolarSystemRotationZ + deltaMidX * 4.0; // Sensitivity
         // Scaling
         const scale = Math.max(0.2, Math.min(3, lastSolarSystemScale * (distance / lastTwoHandDistance)));
         solarSystemGroup.scale.set(scale, scale, scale);
@@ -253,6 +261,7 @@ hands.onResults(results => {
   lastTwoHandAngle = null;
   lastTwoHandDistance = null;
   lastTwoHandMidY = null;
+  lastTwoHandMidX = null;
   // One-hand pinch for panning
   if (results.multiHandLandmarks.length > 0) {
     for (const landmarks of results.multiHandLandmarks) {
