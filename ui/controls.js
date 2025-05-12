@@ -1,15 +1,18 @@
 // UI Controls Module
 // Handles speed slider and value display logic
 
-export function initSpeedControls({ speedSlider, speedValue, onSpeedChange, defaultSpeed }) {
+export function initSpeedControls({ speedSlider, speedValue, onSpeedChange }) {
   if (!speedSlider || !speedValue) return;
-  const REALTIME_SPEED = defaultSpeed ?? 0.0000116;
   function updateSpeedDisplay() {
     const val = parseFloat(speedSlider.value);
-    if (Math.abs(val - REALTIME_SPEED) < 1e-7) {
+    if (val === 1) {
       speedValue.textContent = '1x realtime';
+    } else if (val === -1) {
+      speedValue.textContent = '-1x';
+    } else if (val < 0) {
+      speedValue.textContent = val.toFixed(2) + 'x';
     } else {
-      speedValue.textContent = (val / REALTIME_SPEED).toFixed(2) + 'x';
+      speedValue.textContent = val.toFixed(2) + 'x';
     }
   }
   speedSlider.addEventListener('input', () => {

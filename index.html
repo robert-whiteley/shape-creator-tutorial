@@ -42,8 +42,8 @@
 
   <div id="speed-control" style="position: absolute; top: 5px; right: 180px; z-index: 40; background: rgba(0,0,0,0.5); padding: 10px; border-radius: 8px; color: white; font-family: sans-serif;">
     <label for="speed-slider">Speed:</label>
-    <input type="range" id="speed-slider" min="0.0000116" max="3" step="0.01" value="0.0000116" style="vertical-align: middle;">
-    <span id="speed-value">1.00x</span>
+    <input type="range" id="speed-slider" min="-31557600" max="31557600" step="1" value="1" style="vertical-align: middle;">
+    <span id="speed-value" style="display: inline-block; min-width: 100px; font-family: 'Roboto Mono', 'Menlo', 'Consolas', monospace; text-align: right;">1.00x</span>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>

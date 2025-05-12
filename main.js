@@ -128,16 +128,15 @@ let speedValue = document.getElementById('speed-value');
 initSpeedControls({
   speedSlider,
   speedValue,
-  onSpeedChange: (val) => { speedMultiplier = val; },
-  defaultSpeed: 0.0000116
+  onSpeedChange: (val) => { speedMultiplier = val; }
 });
 
 const animate = () => {
   requestAnimationFrame(animate);
   const now = Date.now();
-  const deltaDays = ((now - lastAnimationTime) / 1000) * speedMultiplier; // 1s = 1 Earth day
+  const deltaMs = now - lastAnimationTime;
   lastAnimationTime = now;
-  simulationTime += deltaDays * 24 * 60 * 60 * 1000; // advance simulation time
+  simulationTime += deltaMs * speedMultiplier; // 1x = real time, -1x = reverse real time
   updateSimDateDisplay();
   shapes.forEach(shape => {
     // Find planet name
@@ -151,18 +150,18 @@ const animate = () => {
     if (!planetName) planetName = 'sun'; // fallback
     // Rotation (planet spin)
     if (shape !== selectedShape) {
-      shape.rotation.y += (planetSpeeds[planetName]?.rotation || 0) * deltaDays;
+      shape.rotation.y += (planetSpeeds[planetName]?.rotation || 0) * (deltaMs * speedMultiplier / (24 * 60 * 60 * 1000));
     }
     // Animate moon orbit if this is an earth with a moon
     if (moonOrbitData.has(shape)) {
       const { pivot } = moonOrbitData.get(shape);
       // Moon's orbital period: 27.32 days
-      pivot.rotation.y += (2 * Math.PI / 27.32) * deltaDays;
+      pivot.rotation.y += (2 * Math.PI / 27.32) * (deltaMs * speedMultiplier / (24 * 60 * 60 * 1000));
     }
     // Animate planet orbit if it has a pivot (not the sun)
     if (planetOrbitData.has(shape)) {
       const pivot = planetOrbitData.get(shape);
-      pivot.rotation.y += (planetSpeeds[planetName]?.orbit || 0) * deltaDays;
+      pivot.rotation.y += (planetSpeeds[planetName]?.orbit || 0) * (deltaMs * speedMultiplier / (24 * 60 * 60 * 1000));
     }
   });
   getRenderer().render(getScene(), getCamera());
