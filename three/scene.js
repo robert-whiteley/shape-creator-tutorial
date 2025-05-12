@@ -5,10 +5,12 @@
 
 let scene, camera, renderer;
 let lastAnimationTime = Date.now();
+let starmapMesh = null;
 
 export function getScene() { return scene; }
 export function getCamera() { return camera; }
 export function getRenderer() { return renderer; }
+export function getStarmapMesh() { return starmapMesh; }
 
 export function initThree({
   solarSystemGroup,
@@ -84,6 +86,18 @@ export function initThree({
     const orbitLine = createOrbitLine(orbitRadius, 128, 0xffffff, 0.2);
     solarSystemGroup.add(orbitLine);
   });
+  // Add starmap sphere (background)
+  const starmapGeometry = new THREE.SphereGeometry(500, 64, 64);
+  const starmapTexture = new THREE.TextureLoader().load('textures/starmap.jpg');
+  const starmapMaterial = new THREE.MeshBasicMaterial({
+    map: starmapTexture,
+    side: THREE.BackSide,
+    transparent: true,
+    opacity: 0.5 // Slightly translucent
+  });
+  starmapMesh = new THREE.Mesh(starmapGeometry, starmapMaterial);
+  starmapMesh.renderOrder = -1; // Render behind everything
+  solarSystemGroup.add(starmapMesh);
   animateCallback();
 }
 

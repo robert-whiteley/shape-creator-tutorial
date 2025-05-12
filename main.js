@@ -1,4 +1,4 @@
-import { initThree, getRenderer, getScene, getCamera } from './three/scene.js';
+import { initThree, getRenderer, getScene, getCamera, getStarmapMesh } from './three/scene.js';
 import {
   planetData,
   planetPhysicalData,
