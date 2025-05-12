@@ -3,22 +3,27 @@
 
 export function initSpeedControls({ speedSlider, speedValue, onSpeedChange }) {
   if (!speedSlider || !speedValue) return;
+  function getSpeedMultiplier(val) {
+    if (val == 0) return 1;
+    return Math.sign(val) * Math.pow(10, Math.abs(val));
+  }
   function updateSpeedDisplay() {
-    const val = parseFloat(speedSlider.value);
-    if (val === 1) {
+    const val = parseInt(speedSlider.value);
+    const multiplier = getSpeedMultiplier(val);
+    if (multiplier === 1) {
       speedValue.textContent = '1x realtime';
-    } else if (val === -1) {
-      speedValue.textContent = '-1x';
-    } else if (val < 0) {
-      speedValue.textContent = val.toFixed(2) + 'x';
     } else {
-      speedValue.textContent = val.toFixed(2) + 'x';
+      speedValue.textContent = multiplier.toLocaleString('en-US', {maximumFractionDigits: 0}) + 'x';
     }
   }
   speedSlider.addEventListener('input', () => {
-    if (onSpeedChange) onSpeedChange(parseFloat(speedSlider.value));
+    const val = parseInt(speedSlider.value);
+    const multiplier = getSpeedMultiplier(val);
+    if (onSpeedChange) onSpeedChange(multiplier);
     updateSpeedDisplay();
   });
-  updateSpeedDisplay(); // Set initial display
-  if (onSpeedChange) onSpeedChange(parseFloat(speedSlider.value)); // Set initial speed
+  // Set initial display and speed
+  const initialVal = parseInt(speedSlider.value);
+  if (onSpeedChange) onSpeedChange(getSpeedMultiplier(initialVal));
+  updateSpeedDisplay();
 } 
