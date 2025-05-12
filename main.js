@@ -38,6 +38,18 @@ let lastSolarSystemRotationZ = 0;
 let speedMultiplier = 1;
 let lastAnimationTime = Date.now();
 
+// --- Simulation time tracking ---
+let simulationTime = Date.now(); // ms since epoch, starts at real time
+const simDateDiv = document.getElementById('sim-date');
+function updateSimDateDisplay() {
+  const date = new Date(simulationTime);
+  // Format as YYYY-MM-DD HH:mm:ss in local time
+  const pad = n => n.toString().padStart(2, '0');
+  const str = `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+  simDateDiv.textContent = str;
+}
+updateSimDateDisplay();
+
 function handleHandResults(results) {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -125,6 +137,8 @@ const animate = () => {
   const now = Date.now();
   const deltaDays = ((now - lastAnimationTime) / 1000) * speedMultiplier; // 1s = 1 Earth day
   lastAnimationTime = now;
+  simulationTime += deltaDays * 24 * 60 * 60 * 1000; // advance simulation time
+  updateSimDateDisplay();
   shapes.forEach(shape => {
     // Find planet name
     let planetName = null;

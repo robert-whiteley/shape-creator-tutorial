@@ -66,3 +66,19 @@ a {
   position: relative;
   z-index: 2;
 }
+
+#sim-date {
+  position: absolute;
+  top: 5px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: white;
+  background: rgba(0, 0, 0, 0.6);
+  padding: 8px 18px;
+  font-family: sans-serif;
+  font-size: 16px;
+  z-index: 50;
+  border-radius: 8px;
+  pointer-events: none;
+  letter-spacing: 0.5px;
+}
