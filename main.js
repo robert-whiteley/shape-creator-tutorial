@@ -12,6 +12,7 @@ import {
 import { setupHands, isPinch, areIndexFingersClose } from './gestures/hands.js';
 import { initCamera } from './utils/camera.js';
 import { initSpeedControls } from './ui/controls.js';
+import { get3DCoords } from './utils/helpers.js';
 
 let video = document.getElementById('webcam');
 let canvas = document.getElementById('canvas');
@@ -37,49 +38,10 @@ let lastSolarSystemRotationZ = 0;
 let speedMultiplier = 1;
 let lastAnimationTime = Date.now();
 
-const neonColors = [0xFF00FF, 0x00FFFF, 0xFF3300, 0x39FF14, 0xFF0099, 0x00FF00, 0xFF6600, 0xFFFF00];
-let colorIndex = 0;
-
 const getNextNeonColor = () => {
     const color = neonColors[colorIndex];
     colorIndex = (colorIndex + 1) % neonColors.length;
     return color;
-};
-
-const get3DCoords = (normX, normY) => {
-  const x = (normX - 0.5) * 10;
-  const y = (0.5 - normY) * 10;
-  return new THREE.Vector3(x, y, 0);
-};
-
-const findNearestShape = (position) => {
-  let minDist = Infinity;
-  let closest = null;
-  shapes.forEach(shape => {
-    const dist = shape.position.distanceTo(position);
-    if (dist < 1.5 && dist < minDist) {
-      minDist = dist;
-      closest = shape;
-    }
-  });
-  return closest;
-};
-
-const isInRecycleBinZone = (position) => {
-  const vector = position.clone().project(camera);
-  const screenX = ((vector.x + 1) / 2) * window.innerWidth;
-  const screenY = ((-vector.y + 1) / 2) * window.innerHeight;
-
-  const binWidth = 160;
-  const binHeight = 160;
-  const binLeft = window.innerWidth - 60 - binWidth;
-  const binTop = window.innerHeight - 60 - binHeight;
-  const binRight = binLeft + binWidth;
-  const binBottom = binTop + binHeight;
-
-  const adjustedX = window.innerWidth - screenX;
-
-  return adjustedX >= binLeft && adjustedX <= binRight && screenY >= binTop && screenY <= binBottom;
 };
 
 function handleHandResults(results) {
