@@ -57,7 +57,8 @@ const createRandomShape = (position) => {
     'textures/saturn.jpg',
     'textures/uranus.jpg',
     'textures/neptune.jpg',
-    'textures/pluto.jpg'
+    'textures/pluto.jpg',
+    'textures/earth.jpg'
   ];
   const textureUrl = textures[Math.floor(Math.random() * textures.length)];
   const planetTexture = new THREE.TextureLoader().load(textureUrl);
