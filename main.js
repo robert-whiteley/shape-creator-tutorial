@@ -38,12 +38,6 @@ let lastSolarSystemRotationZ = 0;
 let speedMultiplier = 1;
 let lastAnimationTime = Date.now();
 
-const getNextNeonColor = () => {
-    const color = neonColors[colorIndex];
-    colorIndex = (colorIndex + 1) % neonColors.length;
-    return color;
-};
-
 function handleHandResults(results) {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
