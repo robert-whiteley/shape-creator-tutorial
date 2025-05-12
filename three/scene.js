@@ -6,11 +6,13 @@
 let scene, camera, renderer;
 let lastAnimationTime = Date.now();
 let starmapMesh = null;
+let sunMesh = null;
 
 export function getScene() { return scene; }
 export function getCamera() { return camera; }
 export function getRenderer() { return renderer; }
 export function getStarmapMesh() { return starmapMesh; }
+export function getSunMesh() { return sunMesh; }
 
 export function initThree({
   solarSystemGroup,
@@ -49,7 +51,7 @@ export function initThree({
   const sunTexture = new THREE.TextureLoader().load('textures/sun.jpg');
   const sunMaterial = new THREE.MeshBasicMaterial({ map: sunTexture });
   // For extra glow, add emissive color (if using MeshStandardMaterial, but MeshBasicMaterial is always emissive)
-  const sunMesh = new THREE.Mesh(sunGeometry, sunMaterial);
+  sunMesh = new THREE.Mesh(sunGeometry, sunMaterial);
   sunMesh.position.set(0, 0, 0);
   sunMesh.castShadow = false;
   sunMesh.receiveShadow = false;

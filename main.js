@@ -1,4 +1,4 @@
-import { initThree, getRenderer, getScene, getCamera, getStarmapMesh } from './three/scene.js';
+import { initThree, getRenderer, getScene, getCamera, getStarmapMesh, getSunMesh } from './three/scene.js';
 import {
   planetData,
   planetPhysicalData,
@@ -164,6 +164,11 @@ const animate = () => {
       pivot.rotation.y += (planetSpeeds[planetName]?.orbit || 0) * (deltaMs * speedMultiplier / (24 * 60 * 60 * 1000));
     }
   });
+  // Animate sun rotation
+  const sunMesh = getSunMesh();
+  if (sunMesh) {
+    sunMesh.rotation.y += (planetSpeeds['sun']?.rotation || 0) * (deltaMs * speedMultiplier / (24 * 60 * 60 * 1000));
+  }
   getRenderer().render(getScene(), getCamera());
 };
 
