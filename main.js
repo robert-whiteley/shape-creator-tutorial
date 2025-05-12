@@ -15,6 +15,7 @@ const moonOrbitData = new Map(); // Map from earth group to {pivot, moon}
 let solarSystemGroup = null;
 let lastTwoHandAngle = null;
 let lastSolarSystemRotationY = 0;
+let planetOrbitData = new Map(); // Map from planet group to its pivot
 
 const planetData = [
   { name: 'sun', texture: 'textures/sun.jpg', size: 1.2 * 0.8 },
@@ -40,12 +41,11 @@ function createPlanet({ texture, size, name }, position) {
   group.add(fillMesh);
   group.add(wireframeMesh);
   group.position.copy(position);
-  scene.add(group);
   // If this is earth, add a moon
   if (name === 'earth') {
     const moonPivot = new THREE.Group();
     group.add(moonPivot);
-    const moonGeometry = new THREE.SphereGeometry(0.18, 32, 32);
+    const moonGeometry = new THREE.SphereGeometry(0.18 * 0.8, 32, 32);
     const moonTexture = new THREE.TextureLoader().load('textures/moon.jpg');
     const moonMaterial = new THREE.MeshBasicMaterial({ map: moonTexture });
     const moonMesh = new THREE.Mesh(moonGeometry, moonMaterial);
@@ -69,15 +69,31 @@ const initThree = () => {
   // Create a group for the whole solar system
   solarSystemGroup = new THREE.Group();
   scene.add(solarSystemGroup);
+  planetOrbitData = new Map();
   // Reverse the planet order so the sun is on the far right
   const reversedPlanets = [...planetData].reverse();
   const totalPlanets = reversedPlanets.length;
   const viewWidth = 8;
   const spacing = (viewWidth / (totalPlanets - 1)) * 1.3;
   const startX = -((spacing * (totalPlanets - 1)) / 2);
+  let sunGroup = null;
   reversedPlanets.forEach((planet, i) => {
-    const planetGroup = createPlanet(planet, new THREE.Vector3(startX + i * spacing, 0, 0));
-    solarSystemGroup.add(planetGroup);
+    const pos = new THREE.Vector3(startX + i * spacing, 0, 0);
+    const planetGroup = createPlanet(planet, pos.clone());
+    if (planet.name === 'sun') {
+      // Sun stays at the center of the solarSystemGroup
+      planetGroup.position.set(0, 0, 0);
+      solarSystemGroup.add(planetGroup);
+      sunGroup = planetGroup;
+    } else {
+      // Create a pivot at the sun's position
+      const pivot = new THREE.Group();
+      pivot.position.set(0, 0, 0);
+      planetGroup.position.copy(pos.clone().sub(new THREE.Vector3(startX + (totalPlanets-1) * spacing, 0, 0))); // Offset from sun
+      pivot.add(planetGroup);
+      solarSystemGroup.add(pivot);
+      planetOrbitData.set(planetGroup, pivot);
+    }
   });
   animate();
 };
@@ -92,6 +108,14 @@ const animate = () => {
     if (moonOrbitData.has(shape)) {
       const { pivot } = moonOrbitData.get(shape);
       pivot.rotation.y += 0.03; // Moon orbit speed
+    }
+    // Animate planet orbit if it has a pivot (not the sun)
+    if (planetOrbitData.has(shape)) {
+      const pivot = planetOrbitData.get(shape);
+      // Each planet can have a different speed (closer = faster)
+      const baseSpeed = 0.01;
+      const speed = baseSpeed * (1 + 0.5 * Math.random()); // You can make this deterministic if you want
+      pivot.rotation.y += baseSpeed + 0.01 * Math.sin(Date.now() * 0.0001 + shapes.indexOf(shape));
     }
   });
   renderer.render(scene, camera);
