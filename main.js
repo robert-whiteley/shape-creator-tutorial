@@ -34,6 +34,18 @@ const planetData = [
   { name: 'pluto', texture: 'textures/pluto.jpg', size: 0.18 * 0.8 }
 ];
 
+function createOrbitLine(radius, segments = 128, color = 0xffffff, opacity = 0.25) {
+  const geometry = new THREE.BufferGeometry();
+  const positions = [];
+  for (let i = 0; i <= segments; i++) {
+    const theta = (i / segments) * Math.PI * 2;
+    positions.push(Math.cos(theta) * radius, 0, Math.sin(theta) * radius);
+  }
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  const material = new THREE.LineBasicMaterial({ color, transparent: true, opacity });
+  return new THREE.Line(geometry, material);
+}
+
 function createPlanet({ texture, size, name }, position) {
   const geometry = new THREE.SphereGeometry(size, 32, 32);
   const group = new THREE.Group();
@@ -56,6 +68,9 @@ function createPlanet({ texture, size, name }, position) {
     moonMesh.position.set(0.8, 0, 0);
     moonPivot.add(moonMesh);
     moonOrbitData.set(group, { pivot: moonPivot, moon: moonMesh });
+    // Add moon orbit line
+    const moonOrbitLine = createOrbitLine(0.8, 128, 0xffffff, 0.3);
+    group.add(moonOrbitLine);
   }
   shapes.push(group);
   return group;
@@ -97,6 +112,10 @@ const initThree = () => {
       pivot.add(planetGroup);
       solarSystemGroup.add(pivot);
       planetOrbitData.set(planetGroup, pivot);
+      // Add planet orbit line
+      const orbitRadius = planetGroup.position.length();
+      const orbitLine = createOrbitLine(orbitRadius, 128, 0xffffff, 0.2);
+      solarSystemGroup.add(orbitLine);
     }
   });
   animate();
