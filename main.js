@@ -11,6 +11,7 @@ let selectedShape = null;
 let shapeCreatedThisPinch = false;
 let lastShapeCreationTime = 0;
 const shapeCreationCooldown = 1000;
+const moonOrbitData = new Map(); // Map from earth group to {pivot, moon}
 
 const initThree = () => {
   scene = new THREE.Scene();
@@ -29,6 +30,11 @@ const animate = () => {
   shapes.forEach(shape => {
     if (shape !== selectedShape) {
       shape.rotation.y += 0.01;
+    }
+    // Animate moon orbit if this is an earth with a moon
+    if (moonOrbitData.has(shape)) {
+      const { pivot } = moonOrbitData.get(shape);
+      pivot.rotation.y += 0.03; // Moon orbit speed
     }
   });
   renderer.render(scene, camera);
@@ -72,6 +78,23 @@ const createRandomShape = (position) => {
   group.add(wireframeMesh);
   group.position.copy(position);
   scene.add(group);
+
+  // If this is earth, add a moon
+  if (textureUrl === 'textures/earth.jpg') {
+    // Create a pivot for the moon to orbit around the earth
+    const moonPivot = new THREE.Group();
+    group.add(moonPivot);
+    // Create the moon mesh
+    const moonGeometry = new THREE.SphereGeometry(0.18, 32, 32);
+    const moonTexture = new THREE.TextureLoader().load('textures/moon.jpg');
+    const moonMaterial = new THREE.MeshBasicMaterial({ map: moonTexture });
+    const moonMesh = new THREE.Mesh(moonGeometry, moonMaterial);
+    // Position the moon at a distance from earth
+    moonMesh.position.set(1, 0, 0);
+    moonPivot.add(moonMesh);
+    // Store the pivot and moon for animation
+    moonOrbitData.set(group, { pivot: moonPivot, moon: moonMesh });
+  }
 
   shapes.push(group);
   return group;
