@@ -28,7 +28,6 @@ const animate = () => {
   requestAnimationFrame(animate);
   shapes.forEach(shape => {
     if (shape !== selectedShape) {
-      shape.rotation.x += 0.01;
       shape.rotation.y += 0.01;
     }
   });
@@ -45,25 +44,24 @@ const getNextNeonColor = () => {
 };
 
 const createRandomShape = (position) => {
-  const geometries = [
-    new THREE.BoxGeometry(),
-    new THREE.SphereGeometry(0.5, 32, 32),
-    new THREE.ConeGeometry(0.5, 1, 32),
-    new THREE.CylinderGeometry(0.5, 0.5, 1, 32)
-  ];
-  const geometryIndex = Math.floor(Math.random() * geometries.length);
-  const geometry = geometries[geometryIndex];
-  const color = getNextNeonColor();
+  // Only create a sphere, randomly one of the planets
+  const geometry = new THREE.SphereGeometry(0.5, 32, 32);
   const group = new THREE.Group();
 
-  let material;
-  if (geometry instanceof THREE.SphereGeometry) {
-    // Use an Earth texture for the sphere (CORS-enabled)
-    const earthTexture = new THREE.TextureLoader().load('https://threejs.org/examples/textures/land_ocean_ice_cloud_2048.jpg');
-    material = new THREE.MeshBasicMaterial({ map: earthTexture });
-  } else {
-    material = new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: 0.5 });
-  }
+  // Randomly choose a planet texture (mars, mercury, venus, jupiter, saturn, uranus, neptune, pluto)
+  const textures = [
+    'textures/mars.jpg',
+    'textures/mercury.jpg',
+    'textures/venus.jpg',
+    'textures/jupiter.jpg',
+    'textures/saturn.jpg',
+    'textures/uranus.jpg',
+    'textures/neptune.jpg',
+    'textures/pluto.jpg'
+  ];
+  const textureUrl = textures[Math.floor(Math.random() * textures.length)];
+  const planetTexture = new THREE.TextureLoader().load(textureUrl);
+  const material = new THREE.MeshBasicMaterial({ map: planetTexture });
   const fillMesh = new THREE.Mesh(geometry, material);
 
   const wireframeMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true });
