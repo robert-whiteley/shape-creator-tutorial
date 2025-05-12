@@ -10,6 +10,7 @@ import {
   daysSinceJ2000
 } from './three/solarSystem.js';
 import { setupHands, isPinch, areIndexFingersClose } from './gestures/hands.js';
+import { initCamera } from './utils/camera.js';
 
 let video = document.getElementById('webcam');
 let canvas = document.getElementById('canvas');
@@ -154,19 +155,6 @@ function handleHandResults(results) {
 
 let hands = setupHands({ onResults: handleHandResults });
 
-const initCamera = async () => {
-  const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 } });
-  video.srcObject = stream;
-  await new Promise(resolve => video.onloadedmetadata = resolve);
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-  new Camera(video, {
-    onFrame: async () => await hands.send({ image: video }),
-    width: video.videoWidth,
-    height: video.videoHeight
-  }).start();
-};
-
 if (speedSlider && speedValue) {
   const REALTIME_SPEED = 0.0000116;
   function updateSpeedDisplay() {
@@ -231,4 +219,9 @@ initThree({
   shapes,
   animateCallback: animate // pass the animation loop
 });
-initCamera();
+initCamera({
+  video,
+  canvas,
+  hands,
+  // onFrame is not needed because hands is provided and will be called automatically
+});
