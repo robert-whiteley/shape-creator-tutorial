@@ -41,6 +41,16 @@ export function initThree({
   sunLight.shadow.mapSize.height = 1024;
   sunLight.shadow.bias = -0.005;
   scene.add(sunLight);
+  // Add a firey sun mesh at the center (not affected by lighting)
+  const sunGeometry = new THREE.SphereGeometry(1.2 * 0.8, 32, 32);
+  const sunTexture = new THREE.TextureLoader().load('textures/sun.jpg');
+  const sunMaterial = new THREE.MeshBasicMaterial({ map: sunTexture });
+  // For extra glow, add emissive color (if using MeshStandardMaterial, but MeshBasicMaterial is always emissive)
+  const sunMesh = new THREE.Mesh(sunGeometry, sunMaterial);
+  sunMesh.position.set(0, 0, 0);
+  sunMesh.castShadow = false;
+  sunMesh.receiveShadow = false;
+  solarSystemGroup.add(sunMesh);
   // Add solar system group
   scene.add(solarSystemGroup);
   // Add planets and orbits
