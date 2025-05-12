@@ -11,6 +11,7 @@ import {
 } from './three/solarSystem.js';
 import { setupHands, isPinch, areIndexFingersClose } from './gestures/hands.js';
 import { initCamera } from './utils/camera.js';
+import { initSpeedControls } from './ui/controls.js';
 
 let video = document.getElementById('webcam');
 let canvas = document.getElementById('canvas');
@@ -34,8 +35,6 @@ let lastSolarSystemRotationX = 0;
 let lastTwoHandMidX = null;
 let lastSolarSystemRotationZ = 0;
 let speedMultiplier = 1;
-const speedSlider = document.getElementById('speed-slider');
-const speedValue = document.getElementById('speed-value');
 let lastAnimationTime = Date.now();
 
 const neonColors = [0xFF00FF, 0x00FFFF, 0xFF3300, 0x39FF14, 0xFF0099, 0x00FF00, 0xFF6600, 0xFFFF00];
@@ -155,22 +154,15 @@ function handleHandResults(results) {
 
 let hands = setupHands({ onResults: handleHandResults });
 
-if (speedSlider && speedValue) {
-  const REALTIME_SPEED = 0.0000116;
-  function updateSpeedDisplay() {
-    const val = parseFloat(speedSlider.value);
-    if (Math.abs(val - REALTIME_SPEED) < 1e-7) {
-      speedValue.textContent = '1x realtime';
-    } else {
-      speedValue.textContent = (val / REALTIME_SPEED).toFixed(2) + 'x';
-    }
-  }
-  speedSlider.addEventListener('input', () => {
-    speedMultiplier = parseFloat(speedSlider.value);
-    updateSpeedDisplay();
-  });
-  updateSpeedDisplay(); // Set initial display
-}
+let speedSlider = document.getElementById('speed-slider');
+let speedValue = document.getElementById('speed-value');
+
+initSpeedControls({
+  speedSlider,
+  speedValue,
+  onSpeedChange: (val) => { speedMultiplier = val; },
+  defaultSpeed: 0.0000116
+});
 
 const animate = () => {
   requestAnimationFrame(animate);
