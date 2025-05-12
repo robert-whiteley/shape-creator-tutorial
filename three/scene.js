@@ -25,7 +25,8 @@ export function initThree({
 }) {
   scene = new THREE.Scene();
   camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-  camera.position.z = 5;
+  camera.position.set(5, 3, 5); // Set camera at an angle
+  camera.lookAt(0, 0, 0); // Look at the center
   renderer = new THREE.WebGLRenderer({ alpha: true });
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.shadowMap.enabled = true;
