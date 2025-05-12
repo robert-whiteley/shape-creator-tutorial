@@ -331,10 +331,20 @@ const initCamera = async () => {
 };
 
 if (speedSlider && speedValue) {
+  const REALTIME_SPEED = 0.0000116;
+  function updateSpeedDisplay() {
+    const val = parseFloat(speedSlider.value);
+    if (Math.abs(val - REALTIME_SPEED) < 1e-7) {
+      speedValue.textContent = '1x realtime';
+    } else {
+      speedValue.textContent = (val / REALTIME_SPEED).toFixed(2) + 'x';
+    }
+  }
   speedSlider.addEventListener('input', () => {
     speedMultiplier = parseFloat(speedSlider.value);
-    speedValue.textContent = speedMultiplier.toFixed(2) + 'x';
+    updateSpeedDisplay();
   });
+  updateSpeedDisplay(); // Set initial display
 }
 
 initThree();
