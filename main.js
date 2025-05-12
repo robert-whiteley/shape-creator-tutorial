@@ -110,6 +110,15 @@ function createPlanet({ texture, size, name }, position) {
   return group;
 }
 
+// Helper: Days since J2000.0 (Jan 1, 2000, 12:00 TT)
+function daysSinceJ2000() {
+  // J2000.0 = Jan 1, 2000, 12:00 TT = JD 2451545.0
+  // JS Date is UTC, so use Jan 1, 2000, 12:00 UTC as close enough
+  const J2000 = Date.UTC(2000, 0, 1, 12, 0, 0, 0); // months are 0-based
+  const now = Date.now();
+  return (now - J2000) / (1000 * 60 * 60 * 24);
+}
+
 const initThree = () => {
   scene = new THREE.Scene();
   camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -130,6 +139,7 @@ const initThree = () => {
   const spacing = (viewWidth / (totalPlanets - 1)) * 1.3;
   const startX = -((spacing * (totalPlanets - 1)) / 2);
   let sunGroup = null;
+  const days = daysSinceJ2000();
   reversedPlanets.forEach((planet, i) => {
     const pos = new THREE.Vector3(startX + i * spacing, 0, 0);
     const planetGroup = createPlanet(planet, pos.clone());
@@ -144,6 +154,13 @@ const initThree = () => {
       pivot.position.set(0, 0, 0);
       planetGroup.position.copy(pos.clone().sub(new THREE.Vector3(startX + (totalPlanets-1) * spacing, 0, 0))); // Offset from sun
       pivot.add(planetGroup);
+      // Set initial orbit position based on real-world time
+      const period = planetPhysicalData[planet.name]?.orbit;
+      if (period && period > 0) {
+        // Fraction of orbit completed since J2000.0
+        const fraction = (days / period) % 1;
+        pivot.rotation.y = fraction * 2 * Math.PI;
+      }
       solarSystemGroup.add(pivot);
       planetOrbitData.set(planetGroup, pivot);
       // Add planet orbit line
