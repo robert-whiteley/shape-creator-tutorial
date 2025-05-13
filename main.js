@@ -42,8 +42,9 @@ let scaleValue = document.getElementById('scale-value');
 let planetBaseSizes = {};
 let sunBaseSize = null;
 
-let followedObject = null; // The 3D object mesh the camera is currently following
-let worldOffsetToFollowTarget = new THREE.Vector3(); // Desired world-space offset from target to camera
+const RELATIVE_VIEW_DISTANCE_MULTIPLIER = 4.0; // For jump-to and follow distance
+
+let followedObject = null; // Will become an object: { mesh, baseSize, worldOrientedNormalizedViewDir }
 
 // --- Camera Animation State ---
 let isCameraAnimating = false;
@@ -166,30 +167,32 @@ function handleBodyClick(bodyNameKey) {
     const currentScale = parseInt(scaleSlider.value) || 1;
     const visualActualSize = specificBaseSize * currentScale;
 
-    // Define a multiplier for how far the camera should be, relative to the visual size.
-    // e.g., 4.0 means the camera is positioned at a distance roughly 4x the object's visual radius/diameter.
-    const RELATIVE_VIEW_DISTANCE_MULTIPLIER = 4.0; 
-
+    // RELATIVE_VIEW_DISTANCE_MULTIPLIER is now global
     const offsetDistance = visualActualSize * RELATIVE_VIEW_DISTANCE_MULTIPLIER;
     
-    const cameraOffsetDirection = new THREE.Vector3(0, 0.75, 1);
-    cameraOffsetDirection.normalize();
-    cameraOffsetDirection.multiplyScalar(offsetDistance);
+    const baseViewDir = new THREE.Vector3(0, 0.75, 1); // Viewing angle relative to object
+    baseViewDir.normalize();
+
     const solarSystemWorldQuaternion = solarSystemGroup.getWorldQuaternion(new THREE.Quaternion());
-    cameraOffsetDirection.applyQuaternion(solarSystemWorldQuaternion);
-    cameraAnimationEndPos.copy(targetBodyWorldPosition).add(cameraOffsetDirection);
+    const worldOrientedViewDir = baseViewDir.clone().applyQuaternion(solarSystemWorldQuaternion);
+
+    const finalOffsetVector = worldOrientedViewDir.clone().multiplyScalar(offsetDistance);
+    cameraAnimationEndPos.copy(targetBodyWorldPosition).add(finalOffsetVector);
 
     // Set up animation parameters
     cameraAnimationStartPos.copy(camera.position); // Current camera position is the start
     
-    // Current lookAt point (approximated)
     const tempLookAt = new THREE.Vector3();
-    camera.getWorldDirection(tempLookAt).multiplyScalar(10).add(camera.position); // Point 10 units in front of camera
+    camera.getWorldDirection(tempLookAt).multiplyScalar(10).add(camera.position); 
     cameraAnimationStartLookAt.copy(tempLookAt); 
 
-    cameraAnimationEndLookAt.copy(targetBodyWorldPosition); // Final lookAt is the target body center
+    cameraAnimationEndLookAt.copy(targetBodyWorldPosition);
 
-    targetObjectForAnimation = targetObjectMesh; // Store for follow-up after animation
+    targetObjectForAnimation = {
+        mesh: targetObjectMesh,
+        baseSize: specificBaseSize,
+        worldOrientedNormalizedViewDir: worldOrientedViewDir // Store normalized, world-oriented direction
+    };
     isCameraAnimating = true;
     animationStartTime = Date.now();
 
@@ -493,8 +496,6 @@ const animate = () => {
     const elapsed = Date.now() - animationStartTime;
     let progress = Math.min(elapsed / ANIMATION_DURATION, 1.0);
     
-    // Simple ease-out: progress = 1 - Math.pow(1 - progress, 3); // Optional easing
-    // Smoother step (ease-in-out):
     progress = progress < 0.5 ? 2 * progress * progress : 1 - Math.pow(-2 * progress + 2, 2) / 2;
 
     camera.position.lerpVectors(cameraAnimationStartPos, cameraAnimationEndPos, progress);
@@ -504,19 +505,24 @@ const animate = () => {
     if (progress === 1.0) {
       isCameraAnimating = false;
       if (targetObjectForAnimation) {
-        followedObject = targetObjectForAnimation;
+        followedObject = targetObjectForAnimation; // Now an object { mesh, baseSize, worldOrientedNormalizedViewDir }
         targetObjectForAnimation = null;
-        // Update worldOffsetToFollowTarget based on the final animated position
-        // Ensure camera.position is exactly cameraAnimationEndPos before calculating this offset
-        camera.position.copy(cameraAnimationEndPos); // Ensure exact end position
-        followedObject.getWorldPosition(tempWorldPos);
-        worldOffsetToFollowTarget.subVectors(camera.position, tempWorldPos);
+        // No longer need to calculate worldOffsetToFollowTarget here
       } 
     }
-  } else if (followedObject) {
-    // Camera following logic (runs if not animating and there's a followed object)
-    followedObject.getWorldPosition(tempWorldPos);
-    camera.position.copy(tempWorldPos).add(worldOffsetToFollowTarget);
+  } else if (followedObject && followedObject.mesh && followedObject.worldOrientedNormalizedViewDir) {
+    // Camera following logic with real-time scale adjustment
+    followedObject.mesh.getWorldPosition(tempWorldPos); // tempWorldPos is the target's center
+
+    const currentScale = parseInt(scaleSlider.value) || 1;
+    const visualActualSize = followedObject.baseSize * currentScale;
+    
+    // RELATIVE_VIEW_DISTANCE_MULTIPLIER is global
+    const newOffsetDistance = visualActualSize * RELATIVE_VIEW_DISTANCE_MULTIPLIER;
+
+    const currentOffsetVector = followedObject.worldOrientedNormalizedViewDir.clone().multiplyScalar(newOffsetDistance);
+
+    camera.position.copy(tempWorldPos).add(currentOffsetVector);
     camera.lookAt(tempWorldPos);
   }
 
