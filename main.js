@@ -42,6 +42,43 @@ let scaleValue = document.getElementById('scale-value');
 let planetBaseSizes = {};
 let sunBaseSize = null;
 
+// --- UI Update for Bodies List ---
+const bodiesListUl = document.getElementById('bodies-list');
+
+export function updateBodiesList() {
+  if (!bodiesListUl) return;
+  bodiesListUl.innerHTML = ''; // Clear existing items
+
+  // Create Sun as the top-level item
+  const sunLi = document.createElement('li');
+  sunLi.textContent = 'Sun';
+  bodiesListUl.appendChild(sunLi);
+
+  // Create a new UL for planets, nested under the Sun
+  const planetsUl = document.createElement('ul');
+  sunLi.appendChild(planetsUl);
+
+  // Use planetData to populate the planets list
+  planetData.forEach(planetEntry => {
+    const planetNameLower = planetEntry.name.toLowerCase();
+    if (planetNameLower === 'sun') return; // Skip adding Sun again, it's the parent
+
+    const planetLi = document.createElement('li');
+    // Capitalize planet name for display
+    planetLi.textContent = planetNameLower.charAt(0).toUpperCase() + planetNameLower.slice(1);
+    planetsUl.appendChild(planetLi);
+
+    // Specifically check for Earth to add its Moon as a sub-item of Earth
+    if (planetNameLower === 'earth') {
+      const moonsUl = document.createElement('ul');
+      const moonLi = document.createElement('li');
+      moonLi.textContent = 'Moon'; // Hardcoded as per current system
+      moonsUl.appendChild(moonLi);
+      planetLi.appendChild(moonsUl);
+    }
+  });
+}
+
 // New rotation state variables for two-hand gestures
 let gestureInitialQuaternion = null;
 let gestureInitialTwoHandAngle = null;
@@ -338,6 +375,11 @@ initThree({
   shapes,
   animateCallback: animate // pass the animation loop
 });
+
+updateBodiesList(); // Initial call after planets are created
+
+animate();
+
 initCamera({
   video,
   canvas,

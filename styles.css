@@ -82,3 +82,44 @@ a {
   pointer-events: none;
   letter-spacing: 0.5px;
 }
+
+/* Styling for the bodies list */
+#bodies-list-container ul {
+  list-style-type: none;
+  padding: 0;
+  margin: 0;
+}
+
+#bodies-list-container li {
+  padding: 2px 0;
+  font-size: 0.9em;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+#bodies-list-container li:last-child {
+  border-bottom: none;
+}
+
+/* Style for nested moon lists */
+#bodies-list-container ul ul {
+  padding-left: 20px; /* Indent sub-lists */
+  margin-top: 2px;
+  margin-bottom: 2px;
+}
+
+#bodies-list-container ul ul li {
+  font-size: 0.9em; /* Slightly smaller font for moons */
+  border-bottom: none; /* No border for moon items for a cleaner look */
+  padding: 1px 0;
+}
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+#bodies-list-container::-webkit-scrollbar {
+  display: none;
+}
+
+/* Hide scrollbar for IE, Edge and Firefox */
+#bodies-list-container {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
