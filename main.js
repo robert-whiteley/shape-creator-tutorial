@@ -37,6 +37,7 @@ let lastTwoHandMidX = null;
 let lastSolarSystemRotationZ = 0;
 let speedMultiplier = 1;
 let lastPanPosition = null;
+let livePreviousPinchDistance = null;
 let lastCameraOffsetDirection = null;
 let initialCameraDistanceToGroup = null;
 let lastAnimationTime = Date.now();
@@ -91,52 +92,64 @@ function handleHandResults(results) {
         // Start of a new two-hand gesture
         lastTwoHandAngle = angle;
         lastSolarSystemRotationY = solarSystemGroup.rotation.y;
-        lastTwoHandDistance = distance; // Store initial pinch distance
+        lastTwoHandDistance = distance; // Store initial pinch distance for gesture detection
+        livePreviousPinchDistance = distance; // Initialize for dolly zoom delta
 
-        // Store initial camera relationship for zooming
-        initialCameraDistanceToGroup = camera.position.distanceTo(solarSystemGroup.position);
-        if (initialCameraDistanceToGroup < 0.1) { // If camera is too close to or at the target
-            initialCameraDistanceToGroup = 0.1; // Prevent issues, ensure a minimum offset
-            // Default direction: along camera's current view, then inverted
-            lastCameraOffsetDirection = camera.getWorldDirection(new THREE.Vector3()).negate();
-        } else {
-            lastCameraOffsetDirection = new THREE.Vector3().subVectors(camera.position, solarSystemGroup.position).normalize();
-        }
+        // initialCameraDistanceToGroup and lastCameraOffsetDirection no longer primarily used for zoom logic here
+        // but can be kept if other features might use them, or cleaned up if definitively not.
+        // For now, let's leave them but comment out their direct zoom usage setup.
+        // initialCameraDistanceToGroup = camera.position.distanceTo(solarSystemGroup.position);
+        // if (initialCameraDistanceToGroup < 0.1) {
+        //     initialCameraDistanceToGroup = 0.1;
+        //     lastCameraOffsetDirection = camera.getWorldDirection(new THREE.Vector3()).negate();
+        // } else {
+        //     lastCameraOffsetDirection = new THREE.Vector3().subVectors(camera.position, solarSystemGroup.position).normalize();
+        // }
 
         lastTwoHandMidY = midY;
         lastSolarSystemRotationX = solarSystemGroup.rotation.x;
         lastTwoHandMidX = midX;
         lastSolarSystemRotationZ = solarSystemGroup.rotation.z;
-        // lastSolarSystemScale logic removed
       } else {
         // Continuous gesture: Rotation
         const deltaAngle = angle - lastTwoHandAngle;
-        solarSystemGroup.rotation.y = lastSolarSystemRotationY + deltaAngle;
+        solarSystemGroup.rotation.y = lastSolarSystemRotationY + deltaAngle; // Inverted
         const deltaMidY = midY - lastTwoHandMidY;
-        solarSystemGroup.rotation.x = lastSolarSystemRotationX - deltaMidY * 4.0;
+        solarSystemGroup.rotation.x = lastSolarSystemRotationX - deltaMidY * 4.0; // Inverted
         const deltaMidX = midX - lastTwoHandMidX;
-        solarSystemGroup.rotation.z = lastSolarSystemRotationZ - deltaMidX * 4.0;
+        solarSystemGroup.rotation.z = lastSolarSystemRotationZ - deltaMidX * 4.0; // Inverted
 
-        // Continuous gesture: Camera Zoom
-        if (lastTwoHandDistance > 0.001 && distance > 0.001 && lastCameraOffsetDirection) { // Ensure valid distances and offset
-          const zoomFactor = lastTwoHandDistance / distance; // Reversed: apart = zoom in, together = zoom out
-          let newCameraDistance = initialCameraDistanceToGroup * zoomFactor;
+        // Continuous gesture: Camera Dolly (New Zoom Logic)
+        const currentPinchDistance = distance;
+        if (livePreviousPinchDistance !== null) {
+          const pinchDiff = currentPinchDistance - livePreviousPinchDistance;
+          
+          const DOLLY_SENSITIVITY = 25; // Base sensitivity
+          
+          // Calculate current distance from camera to the group for scaling dolly sensitivity
+          const currentCameraDistanceToGroup = camera.position.distanceTo(solarSystemGroup.position);
+          // Scale factor: sensitivity is base at 20 units distance. Min factor of 0.1.
+          const adaptiveDollySensitivityFactor = Math.max(0.1, currentCameraDistanceToGroup / 20.0);
+          const adaptiveDollySensitivity = DOLLY_SENSITIVITY * adaptiveDollySensitivityFactor;
+          
+          const dollyAmount = pinchDiff * adaptiveDollySensitivity;
 
-          // Clamp zoom distance (relative to camera's clipping planes)
-          const MIN_CAM_DISTANCE = Math.max(camera.near + 0.1, 0.5);
-          const MAX_CAM_DISTANCE = camera.far * 0.9;
-          newCameraDistance = Math.max(MIN_CAM_DISTANCE, Math.min(MAX_CAM_DISTANCE, newCameraDistance));
-
-          const newCameraPosition = solarSystemGroup.position.clone().addScaledVector(lastCameraOffsetDirection, newCameraDistance);
-          camera.position.copy(newCameraPosition);
-          camera.lookAt(solarSystemGroup.position);
+          const viewDirection = camera.getWorldDirection(new THREE.Vector3());
+          camera.position.addScaledVector(viewDirection, dollyAmount);
+          // NO camera.lookAt(solarSystemGroup.position) here to prevent snapping
         }
-        // Old scaling logic removed:
-        // const scale = Math.max(0.0005, Math.min(20, lastSolarSystemScale * (distance / lastTwoHandDistance)));
-        // solarSystemGroup.scale.set(scale, scale, scale);
-        // const starmap = getStarmapMesh();
-        // if (starmap && scale !== 0) {
-        //   starmap.scale.set(1 / scale, 1 / scale, 1 / scale);
+        livePreviousPinchDistance = currentPinchDistance; // Update for next frame's delta
+
+        // Old zoom logic (based on solarSystemGroup.position) removed:
+        // if (lastTwoHandDistance > 0.001 && distance > 0.001 && lastCameraOffsetDirection) { 
+        //   const zoomFactor = lastTwoHandDistance / distance; 
+        //   let newCameraDistance = initialCameraDistanceToGroup * zoomFactor;
+        //   const MIN_CAM_DISTANCE = Math.max(camera.near + 0.1, 0.5);
+        //   const MAX_CAM_DISTANCE = camera.far * 0.9;
+        //   newCameraDistance = Math.max(MIN_CAM_DISTANCE, Math.min(MAX_CAM_DISTANCE, newCameraDistance));
+        //   const newCameraPosition = solarSystemGroup.position.clone().addScaledVector(lastCameraOffsetDirection, newCameraDistance);
+        //   camera.position.copy(newCameraPosition);
+        //   camera.lookAt(solarSystemGroup.position);
         // }
       }
       return; // Processed two-hand gesture
@@ -148,9 +161,10 @@ function handleHandResults(results) {
   lastTwoHandDistance = null;
   lastTwoHandMidY = null;
   lastTwoHandMidX = null;
-  // Also reset camera zoom specific states
-  lastCameraOffsetDirection = null;
-  initialCameraDistanceToGroup = null;
+  livePreviousPinchDistance = null; // Reset for dolly zoom
+  // Also reset camera zoom specific states (if they were used by old zoom)
+  // lastCameraOffsetDirection = null; // Kept for now, but not used by new zoom
+  // initialCameraDistanceToGroup = null; // Kept for now, but not used by new zoom
 
   // One-hand pinch for panning
   if (results.multiHandLandmarks.length > 0) {
