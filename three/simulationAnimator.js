@@ -62,8 +62,15 @@ export function updateCelestialAnimations({
       // Its orbital motion around the Sun is handled below.
 
     } else if (planetName && planetSpeeds[planetName] && planetSpeeds[planetName].rotation !== undefined) {
-      // For other planets (not Earth system, not Sun mesh), apply their axial rotation to the main shape group
-      shape.rotation.y += (planetSpeeds[planetName].rotation || 0) * simDaysElapsedInFrame;
+      // For other planets (not Earth system, not Sun mesh), apply their axial rotation
+      // to their dedicated axialSpinGroup, which is stored in userData.
+      if (shape.userData && shape.userData.axialSpinGroup) {
+        shape.userData.axialSpinGroup.rotation.y += (planetSpeeds[planetName].rotation || 0) * simDaysElapsedInFrame;
+      } else {
+        // Fallback or error if axialSpinGroup is not found, though it should be there by design
+        // console.warn(`axialSpinGroup not found for ${planetName}, applying rotation to shape itself.`);
+        // shape.rotation.y += (planetSpeeds[planetName].rotation || 0) * simDaysElapsedInFrame;
+      }
     }
 
     // Animate planet orbit around the sun using Keplerian elements

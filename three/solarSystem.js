@@ -27,16 +27,16 @@ planetData.forEach(planet => {
 
 // Orbital and rotation periods in Earth days
 export const planetPhysicalData = {
-  mercury:  { orbit: 87.97,   rotation: 58.646, eccentricity: 0.206, inclination: 7.0, node: 48.331, peri: 29.127, l0: 252.25032350, peri0: 77.45779628, m0: 174.79252722 }, // M0 = L0 - peri0
-  venus:    { orbit: 224.70,  rotation: -243.025, eccentricity: 0.007, inclination: 3.4, node: 76.680, peri: 54.922, l0: 181.97909950, peri0: 131.60246718, m0: 50.37663232 },
-  earth:    { orbit: 365.26,  rotation: 0.997, eccentricity: 0.017, inclination: 0.0, node: 0.0,    peri: 102.938, l0: 100.46457166, peri0: 102.93768193, m0: -2.47311027 }, // or 357.52688973
-  mars:     { orbit: 686.98,  rotation: 1.026, eccentricity: 0.094, inclination: 1.8, node: 49.559, peri: 286.497, l0: 355.44656795, peri0: 336.05637041, m0: 19.39019754 }, // L0 used was -4.55343205 + 360
-  jupiter:  { orbit: 4332.59, rotation: 0.4135, eccentricity: 0.049, inclination: 1.3, node: 100.474, peri: -85.746, l0: 34.39644051, peri0: 14.72847983, m0: 19.66796068 },
-  saturn:   { orbit: 10759.22,rotation: 0.444, eccentricity: 0.052, inclination: 2.5, node: 113.662, peri: -21.063, l0: 49.95424423, peri0: 92.59887831, m0: -42.64463408 }, // or 317.35536592
-  uranus:   { orbit: 30688.5, rotation: -0.718, eccentricity: 0.047, inclination: 0.8, node: 74.017, peri: 96.937, l0: 313.23810451, peri0: 170.95427630, m0: 142.28382821 },
-  neptune:  { orbit: 60182,   rotation: 0.671, eccentricity: 0.010, inclination: 1.8, node: 131.784, peri: -86.820, l0: 304.87997031, peri0: 44.96476227, m0: 259.91520804 }, // L0 used was -55.12002969 + 360
-  pluto:    { orbit: 90560,   rotation: -6.387, eccentricity: 0.244, inclination: 17.2, node: 110.303, peri: 113.763, l0: 238.92881, peri0: 224.06676, m0: 14.86205 }, // Pluto L0, peri0 from NASA Fact Sheet J2000
-  sun:      { orbit: 0,       rotation: 25.0, eccentricity: 0, inclination: 0, node: 0, peri: 0, l0: 0, peri0: 0, m0: 0 }
+  mercury:  { orbit: 87.97,   rotation: 58.646, eccentricity: 0.206, inclination: 7.0, node: 48.331, peri: 29.127, l0: 252.25032350, peri0: 77.45779628, m0: 174.79252722, axialTilt: 0.034 },
+  venus:    { orbit: 224.70,  rotation: -243.025, eccentricity: 0.007, inclination: 3.4, node: 76.680, peri: 54.922, l0: 181.97909950, peri0: 131.60246718, m0: 50.37663232, axialTilt: 177.4 },
+  earth:    { orbit: 365.26,  rotation: 0.997, eccentricity: 0.017, inclination: 0.0, node: 0.0,    peri: 102.938, l0: 100.46457166, peri0: 102.93768193, m0: -2.47311027, axialTilt: 23.44 },
+  mars:     { orbit: 686.98,  rotation: 1.026, eccentricity: 0.094, inclination: 1.8, node: 49.559, peri: 286.497, l0: 355.44656795, peri0: 336.05637041, m0: 19.39019754, axialTilt: 25.2 },
+  jupiter:  { orbit: 4332.59, rotation: 0.4135, eccentricity: 0.049, inclination: 1.3, node: 100.474, peri: -85.746, l0: 34.39644051, peri0: 14.72847983, m0: 19.66796068, axialTilt: 3.1 },
+  saturn:   { orbit: 10759.22,rotation: 0.444, eccentricity: 0.052, inclination: 2.5, node: 113.662, peri: -21.063, l0: 49.95424423, peri0: 92.59887831, m0: -42.64463408, axialTilt: 26.7 },
+  uranus:   { orbit: 30688.5, rotation: -0.718, eccentricity: 0.047, inclination: 0.8, node: 74.017, peri: 96.937, l0: 313.23810451, peri0: 170.95427630, m0: 142.28382821, axialTilt: 97.8 },
+  neptune:  { orbit: 60182,   rotation: 0.671, eccentricity: 0.010, inclination: 1.8, node: 131.784, peri: -86.820, l0: 304.87997031, peri0: 44.96476227, m0: 259.91520804, axialTilt: 28.3 },
+  pluto:    { orbit: 90560,   rotation: -6.387, eccentricity: 0.244, inclination: 17.2, node: 110.303, peri: 113.763, l0: 238.92881, peri0: 224.06676, m0: 14.86205, axialTilt: 119.5 },
+  sun:      { orbit: 0,       rotation: 25.0, eccentricity: 0, inclination: 0, node: 0, peri: 0, l0: 0, peri0: 0, m0: 0, axialTilt: 7.25 }
 };
 
 // Precompute normalized angular speeds (radians per animation frame, relative to Earth)
@@ -203,13 +203,20 @@ export function createPlanet({ texture, size, name }, position, shapes) {
   fillMesh.castShadow = true;
   fillMesh.receiveShadow = true;
 
+  const planetTilt = planetPhysicalData[name]?.axialTilt || 0; // Get axial tilt, default to 0
+  const axialSpinGroup = new THREE.Group(); // Group for axial spin and tilt
+  axialSpinGroup.add(fillMesh);
+  // Apply axial tilt. This tilts the planet's local Y-axis (spin axis).
+  // We rotate around the Z-axis to tilt the North Pole (initially +Y) towards +X or -X.
+  // This is a common convention, assuming orbit is in XZ plane initially.
+  axialSpinGroup.rotation.z = THREE.MathUtils.degToRad(planetTilt);
+
   if (name === 'earth') {
     const earthSystemGroup = new THREE.Group(); // Main group for Earth & Moon system
     earthSystemGroup.userData = { name: name };
 
-    const earthAxialSpinGroup = new THREE.Group(); // Group for Earth's axial spin
-    earthAxialSpinGroup.add(fillMesh); // Add Earth mesh to the spinner
-    earthSystemGroup.add(earthAxialSpinGroup);
+    // earthAxialSpinGroup already exists conceptually, now it's our axialSpinGroup
+    earthSystemGroup.add(axialSpinGroup); // Add the already tilted axialSpinGroup
 
     const moonPivot = new THREE.Group(); // Moon's orbital pivot
     const moonGeometry = new THREE.SphereGeometry(0.136 * 0.8, 32, 32);
@@ -226,7 +233,7 @@ export function createPlanet({ texture, size, name }, position, shapes) {
     moonOrbitData.set(earthSystemGroup, { 
       pivot: moonPivot, // For moon's orbit
       moon: moonMesh,
-      earthSpinnner: earthAxialSpinGroup // For Earth's axial spin
+      earthSpinnner: axialSpinGroup // Store the new axialSpinGroup as earthSpinner
     });
 
     const moonOrbitLine = createOrbitLine(12.0, 0, 0, 0, 0, 128, 0xffffff, 0.3); // Moon orbit assumed in Earth's orbital plane for now (0 inclination relative to it)
@@ -237,10 +244,12 @@ export function createPlanet({ texture, size, name }, position, shapes) {
     return earthSystemGroup;
 
   } else {
-    // For other planets, the existing group structure is fine
+    // For other planets, the existing group structure is fine for orbit,
+    // but we add the axialSpinGroup to it.
     const group = new THREE.Group();
     group.userData = { name: name };
-    group.add(fillMesh);
+    group.add(axialSpinGroup); // Add the tilted planet to the main orbital group
+    group.userData.axialSpinGroup = axialSpinGroup; // Store reference for animator
     group.position.copy(position);
     shapes.push(group);
     return group;
