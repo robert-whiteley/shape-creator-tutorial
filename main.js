@@ -37,6 +37,12 @@ let lastTwoHandMidX = null;
 let lastSolarSystemRotationZ = 0;
 let speedMultiplier = 1;
 let lastAnimationTime = Date.now();
+let speedSlider = document.getElementById('speed-slider');
+let speedValue = document.getElementById('speed-value');
+let scaleSlider = document.getElementById('scale-slider');
+let scaleValue = document.getElementById('scale-value');
+let planetBaseSizes = {};
+let sunBaseSize = null;
 
 // --- Simulation time tracking ---
 let simulationTime = Date.now(); // ms since epoch, starts at real time
@@ -97,7 +103,7 @@ function handleHandResults(results) {
         const deltaMidX = midX - lastTwoHandMidX;
         solarSystemGroup.rotation.z = lastSolarSystemRotationZ + deltaMidX * 4.0; // Sensitivity
         // Scaling
-        const scale = Math.max(0.2, Math.min(3, lastSolarSystemScale * (distance / lastTwoHandDistance)));
+        const scale = Math.max(0.005, Math.min(20, lastSolarSystemScale * (distance / lastTwoHandDistance)));
         solarSystemGroup.scale.set(scale, scale, scale);
       }
       return;
@@ -122,14 +128,64 @@ function handleHandResults(results) {
 
 let hands = setupHands({ onResults: handleHandResults });
 
-let speedSlider = document.getElementById('speed-slider');
-let speedValue = document.getElementById('speed-value');
-
 initSpeedControls({
   speedSlider,
   speedValue,
   onSpeedChange: (val) => { speedMultiplier = val; }
 });
+
+// Store base sizes for scaling
+planetData.forEach(planet => {
+  planetBaseSizes[planet.name] = planet.size;
+  if (planet.name === 'sun') sunBaseSize = planet.size;
+});
+
+function updateScaleDisplay(val) {
+  scaleValue.textContent = val + 'x';
+}
+
+function setPlanetScales(scale) {
+  // Scale all planet meshes
+  shapes.forEach(shape => {
+    // Find planet name
+    let planetName = null;
+    for (const planet of planetData) {
+      if (shape.children[0] && shape.children[0].material && shape.children[0].material.map && shape.children[0].material.map.image && shape.children[0].material.map.image.src && shape.children[0].material.map.image.src.includes(planet.texture)) {
+        planetName = planet.name;
+        break;
+      }
+    }
+    if (!planetName) return;
+    // Set scale on the mesh (not the group)
+    if (shape.children[0]) {
+      const base = planetBaseSizes[planetName] || 1;
+      shape.children[0].scale.set(scale, scale, scale);
+    }
+    // If this is earth, also scale the moon
+    if (planetName === 'earth' && shape.children.length > 1) {
+      // Find the moon mesh
+      const moonPivot = shape.children.find(child => child.type === 'Group');
+      if (moonPivot && moonPivot.children[0]) {
+        moonPivot.children[0].scale.set(scale, scale, scale);
+      }
+    }
+  });
+  // Scale the sun mesh
+  const sunMesh = getSunMesh();
+  if (sunMesh && sunBaseSize) {
+    sunMesh.scale.set(scale, scale, scale);
+  }
+}
+
+// Scale slider logic
+scaleSlider.addEventListener('input', () => {
+  const val = parseInt(scaleSlider.value);
+  updateScaleDisplay(val);
+  setPlanetScales(val);
+});
+// Set initial scale
+updateScaleDisplay(1);
+setPlanetScales(1);
 
 const animate = () => {
   requestAnimationFrame(animate);

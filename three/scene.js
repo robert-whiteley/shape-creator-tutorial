@@ -28,7 +28,7 @@ export function initThree({
   animateCallback
 }) {
   scene = new THREE.Scene();
-  camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+  camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 20000);
   camera.position.set(5, 3, 5); // Set camera at an angle
   camera.lookAt(0, 0, 0); // Look at the center
   renderer = new THREE.WebGLRenderer({ alpha: true });
@@ -47,10 +47,10 @@ export function initThree({
   sunLight.shadow.bias = -0.005;
   scene.add(sunLight);
   // Add a firey sun mesh at the center (not affected by lighting)
-  const sunGeometry = new THREE.SphereGeometry(1.2 * 0.8, 32, 32);
+  const sunInfo = planetData.find(p => p.name === 'sun');
+  const sunGeometry = new THREE.SphereGeometry(sunInfo.size, 32, 32);
   const sunTexture = new THREE.TextureLoader().load('textures/sun.jpg');
   const sunMaterial = new THREE.MeshBasicMaterial({ map: sunTexture });
-  // For extra glow, add emissive color (if using MeshStandardMaterial, but MeshBasicMaterial is always emissive)
   sunMesh = new THREE.Mesh(sunGeometry, sunMaterial);
   sunMesh.position.set(0, 0, 0);
   sunMesh.castShadow = false;
@@ -58,24 +58,36 @@ export function initThree({
   solarSystemGroup.add(sunMesh);
   // Add solar system group
   scene.add(solarSystemGroup);
+  // Real mean orbital radii in km (center-to-center, semi-major axis)
+  const planetOrbitRadiiKm = {
+    mercury: 57900000,    // Mean distance: 57.9 million km
+    venus:   108200000,   // Mean distance: 108.2 million km
+    earth:   149600000,   // Mean distance: 149.6 million km
+    mars:    228000000,   // Mean distance: 228.0 million km (was 227.9)
+    jupiter: 778500000,   // Mean distance: 778.5 million km
+    saturn:  1432000000,  // Mean distance: 1432.0 million km (was 1433)
+    uranus:  2867000000,  // Mean distance: 2867.0 million km (was 2871)
+    neptune: 4515000000,  // Mean distance: 4515.0 million km (was 4495)
+    pluto:   5906400000   // Mean distance: 5906.4 million km (was 590.6)
+  };
+  // Use the same scale as planet sizes
+  const ORBIT_SCALE = 1.2 / 696340; // Same as PLANET_SCALE
   // Add planets and orbits
   const reversedPlanets = [...planetData].reverse();
-  const totalPlanets = reversedPlanets.length;
-  const viewWidth = 8;
-  const spacing = (viewWidth / (totalPlanets - 1)) * 1.3;
-  const startX = -((spacing * (totalPlanets - 1)) / 2);
   const days = daysSinceJ2000();
   reversedPlanets.forEach((planet, i) => {
     if (planet.name === 'sun') {
       // The sun is only a light, not a mesh
       return;
     }
-    const pos = new THREE.Vector3(startX + i * spacing, 0, 0);
+    // Use real orbital radius for position (scaled)
+    const orbitRadius = (planetOrbitRadiiKm[planet.name] || 0) * ORBIT_SCALE;
+    const pos = new THREE.Vector3(orbitRadius, 0, 0);
     const planetGroup = createPlanet(planet, pos.clone(), shapes);
     if (!planetGroup) return;
     const pivot = new THREE.Group();
     pivot.position.set(0, 0, 0);
-    planetGroup.position.copy(pos.clone().sub(new THREE.Vector3(startX + (totalPlanets-1) * spacing, 0, 0)));
+    planetGroup.position.copy(pos);
     pivot.add(planetGroup);
     const period = planetPhysicalData[planet.name]?.orbit;
     if (period && period > 0) {
@@ -84,12 +96,16 @@ export function initThree({
     }
     solarSystemGroup.add(pivot);
     planetOrbitData.set(planetGroup, pivot);
-    const orbitRadius = planetGroup.position.length();
+    // Draw orbit line at correct radius
     const orbitLine = createOrbitLine(orbitRadius, 128, 0xffffff, 0.2);
     solarSystemGroup.add(orbitLine);
   });
   // Add starmap sphere (background)
-  const starmapGeometry = new THREE.SphereGeometry(500, 64, 64);
+  // Determine the maximum orbital radius to size the starmap appropriately
+  const maxOrbitKmVal = Math.max(...Object.values(planetOrbitRadiiKm));
+  const maxScaledOrbitRadiusVal = maxOrbitKmVal * ORBIT_SCALE;
+  const starmapRadius = maxScaledOrbitRadiusVal * 1.5; // Make starmap 1.5x the largest orbit
+  const starmapGeometry = new THREE.SphereGeometry(starmapRadius, 64, 64);
   const starmapTexture = new THREE.TextureLoader().load('textures/starmap.jpg');
   const starmapMaterial = new THREE.MeshBasicMaterial({
     map: starmapTexture,
