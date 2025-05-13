@@ -103,8 +103,12 @@ function handleHandResults(results) {
         const deltaMidX = midX - lastTwoHandMidX;
         solarSystemGroup.rotation.z = lastSolarSystemRotationZ + deltaMidX * 4.0; // Sensitivity
         // Scaling
-        const scale = Math.max(0.005, Math.min(20, lastSolarSystemScale * (distance / lastTwoHandDistance)));
+        const scale = Math.max(0.0005, Math.min(20, lastSolarSystemScale * (distance / lastTwoHandDistance)));
         solarSystemGroup.scale.set(scale, scale, scale);
+        const starmap = getStarmapMesh();
+        if (starmap && scale !== 0) {
+          starmap.scale.set(1 / scale, 1 / scale, 1 / scale);
+        }
       }
       return;
     }

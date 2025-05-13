@@ -28,7 +28,7 @@ export function initThree({
   animateCallback
 }) {
   scene = new THREE.Scene();
-  camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 20000);
+  camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 25000);
   camera.position.set(5, 3, 5); // Set camera at an angle
   camera.lookAt(0, 0, 0); // Look at the center
   renderer = new THREE.WebGLRenderer({ alpha: true });
@@ -104,7 +104,7 @@ export function initThree({
   // Determine the maximum orbital radius to size the starmap appropriately
   const maxOrbitKmVal = Math.max(...Object.values(planetOrbitRadiiKm));
   const maxScaledOrbitRadiusVal = maxOrbitKmVal * ORBIT_SCALE;
-  const starmapRadius = maxScaledOrbitRadiusVal * 1.5; // Make starmap 1.5x the largest orbit
+  const starmapRadius = maxScaledOrbitRadiusVal * 2; // Make starmap 2.5x the largest orbit
   const starmapGeometry = new THREE.SphereGeometry(starmapRadius, 64, 64);
   const starmapTexture = new THREE.TextureLoader().load('textures/starmap.jpg');
   const starmapMaterial = new THREE.MeshBasicMaterial({
@@ -115,7 +115,7 @@ export function initThree({
   });
   starmapMesh = new THREE.Mesh(starmapGeometry, starmapMaterial);
   starmapMesh.renderOrder = -1; // Render behind everything
-  solarSystemGroup.add(starmapMesh);
+  solarSystemGroup.add(starmapMesh); // Reverted: Add starmap back to solarSystemGroup
   animateCallback();
 }
 
