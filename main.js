@@ -7,7 +7,9 @@ import {
   planetOrbitData,
   createOrbitLine,
   createPlanet,
-  daysSinceJ2000
+  daysSinceJ2000,
+  planetBaseSizes,
+  sunBaseSize
 } from './three/solarSystem.js';
 import { setupHands, isPinch, areIndexFingersClose } from './gestures/hands.js';
 import { initCamera } from './utils/camera.js';
@@ -32,8 +34,6 @@ let speedSlider = document.getElementById('speed-slider');
 let speedValue = document.getElementById('speed-value');
 let scaleSlider = document.getElementById('scale-slider');
 let scaleValue = document.getElementById('scale-value');
-let planetBaseSizes = {};
-let sunBaseSize = null;
 
 // Initialize Camera Controller
 const cameraController = initCameraController({
@@ -59,12 +59,6 @@ initSpeedControls({
   speedSlider,
   speedValue,
   onSpeedChange: (val) => { speedMultiplier = val; }
-});
-
-// Store base sizes for scaling
-planetData.forEach(planet => {
-  planetBaseSizes[planet.name] = planet.size;
-  if (planet.name === 'sun') sunBaseSize = planet.size;
 });
 
 const animate = () => {

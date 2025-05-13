@@ -16,6 +16,15 @@ export const planetData = [
   { name: 'pluto', texture: 'textures/pluto.jpg', size: 0.18 * 0.8 }
 ];
 
+// Create and export planetBaseSizes and sunBaseSize
+export const planetBaseSizes = {};
+export let sunBaseSize = null;
+
+planetData.forEach(planet => {
+  planetBaseSizes[planet.name] = planet.size;
+  if (planet.name === 'sun') sunBaseSize = planet.size;
+});
+
 // Orbital and rotation periods in Earth days
 export const planetPhysicalData = {
   mercury:  { orbit: 87.97,   rotation: 58.646 },
