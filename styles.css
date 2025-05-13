@@ -100,7 +100,7 @@ a {
   border-bottom: none;
 }
 
-/* Style for nested moon lists */
+/* Style for nested moon lists (and now planets under Sun) */
 #bodies-list-container ul ul {
   padding-left: 20px; /* Indent sub-lists */
   margin-top: 2px;
@@ -108,8 +108,8 @@ a {
 }
 
 #bodies-list-container ul ul li {
-  font-size: 0.9em; /* Slightly smaller font for moons */
-  border-bottom: none; /* No border for moon items for a cleaner look */
+  font-size: 0.9em;
+  border-bottom: none;
   padding: 1px 0;
 }
 
