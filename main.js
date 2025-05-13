@@ -36,6 +36,9 @@ let lastSolarSystemRotationX = 0;
 let lastTwoHandMidX = null;
 let lastSolarSystemRotationZ = 0;
 let speedMultiplier = 1;
+let lastPanPosition = null;
+let lastCameraOffsetDirection = null;
+let initialCameraDistanceToGroup = null;
 let lastAnimationTime = Date.now();
 let speedSlider = document.getElementById('speed-slider');
 let speedValue = document.getElementById('speed-value');
@@ -70,63 +73,129 @@ function handleHandResults(results) {
     drawCircle(landmarks[8]); // Index tip
   }
 
-  // Two-hand pinch for rotation (Y, X, Z) and scaling
+  // Two-hand pinch for rotation (Y, X, Z) and scaling/zooming
   if (results.multiHandLandmarks.length === 2) {
     const [l, r] = results.multiHandLandmarks;
     const leftPinch = isPinch(l);
     const rightPinch = isPinch(r);
     if (leftPinch && rightPinch) {
-      // Calculate angle between the two index fingers
+      const camera = getCamera(); // Get camera instance
       const dx = r[8].x - l[8].x;
       const dy = r[8].y - l[8].y;
       const angle = Math.atan2(dy, dx);
-      const distance = Math.hypot(dx, dy);
+      const distance = Math.hypot(dx, dy); // Current pinch distance
       const midY = (l[8].y + r[8].y) / 2;
       const midX = (l[8].x + r[8].x) / 2;
-      if (lastTwoHandAngle === null || lastTwoHandDistance === null || lastTwoHandMidY === null || lastTwoHandMidX === null) {
+
+      if (lastTwoHandAngle === null || lastTwoHandDistance === null /* implies others are null too */) {
+        // Start of a new two-hand gesture
         lastTwoHandAngle = angle;
         lastSolarSystemRotationY = solarSystemGroup.rotation.y;
-        lastTwoHandDistance = distance;
-        lastSolarSystemScale = solarSystemGroup.scale.x;
+        lastTwoHandDistance = distance; // Store initial pinch distance
+
+        // Store initial camera relationship for zooming
+        initialCameraDistanceToGroup = camera.position.distanceTo(solarSystemGroup.position);
+        if (initialCameraDistanceToGroup < 0.1) { // If camera is too close to or at the target
+            initialCameraDistanceToGroup = 0.1; // Prevent issues, ensure a minimum offset
+            // Default direction: along camera's current view, then inverted
+            lastCameraOffsetDirection = camera.getWorldDirection(new THREE.Vector3()).negate();
+        } else {
+            lastCameraOffsetDirection = new THREE.Vector3().subVectors(camera.position, solarSystemGroup.position).normalize();
+        }
+
         lastTwoHandMidY = midY;
         lastSolarSystemRotationX = solarSystemGroup.rotation.x;
         lastTwoHandMidX = midX;
         lastSolarSystemRotationZ = solarSystemGroup.rotation.z;
+        // lastSolarSystemScale logic removed
       } else {
-        // Rotation Y
+        // Continuous gesture: Rotation
         const deltaAngle = angle - lastTwoHandAngle;
-        solarSystemGroup.rotation.y = lastSolarSystemRotationY - deltaAngle;
-        // Rotation X (up/down)
+        solarSystemGroup.rotation.y = lastSolarSystemRotationY + deltaAngle;
         const deltaMidY = midY - lastTwoHandMidY;
-        solarSystemGroup.rotation.x = lastSolarSystemRotationX + deltaMidY * 4.0; // Sensitivity
-        // Rotation Z (sideways)
+        solarSystemGroup.rotation.x = lastSolarSystemRotationX - deltaMidY * 4.0;
         const deltaMidX = midX - lastTwoHandMidX;
-        solarSystemGroup.rotation.z = lastSolarSystemRotationZ + deltaMidX * 4.0; // Sensitivity
-        // Scaling
-        const scale = Math.max(0.0005, Math.min(20, lastSolarSystemScale * (distance / lastTwoHandDistance)));
-        solarSystemGroup.scale.set(scale, scale, scale);
-        const starmap = getStarmapMesh();
-        if (starmap && scale !== 0) {
-          starmap.scale.set(1 / scale, 1 / scale, 1 / scale);
+        solarSystemGroup.rotation.z = lastSolarSystemRotationZ - deltaMidX * 4.0;
+
+        // Continuous gesture: Camera Zoom
+        if (lastTwoHandDistance > 0.001 && distance > 0.001 && lastCameraOffsetDirection) { // Ensure valid distances and offset
+          const zoomFactor = lastTwoHandDistance / distance; // Reversed: apart = zoom in, together = zoom out
+          let newCameraDistance = initialCameraDistanceToGroup * zoomFactor;
+
+          // Clamp zoom distance (relative to camera's clipping planes)
+          const MIN_CAM_DISTANCE = Math.max(camera.near + 0.1, 0.5);
+          const MAX_CAM_DISTANCE = camera.far * 0.9;
+          newCameraDistance = Math.max(MIN_CAM_DISTANCE, Math.min(MAX_CAM_DISTANCE, newCameraDistance));
+
+          const newCameraPosition = solarSystemGroup.position.clone().addScaledVector(lastCameraOffsetDirection, newCameraDistance);
+          camera.position.copy(newCameraPosition);
+          camera.lookAt(solarSystemGroup.position);
         }
+        // Old scaling logic removed:
+        // const scale = Math.max(0.0005, Math.min(20, lastSolarSystemScale * (distance / lastTwoHandDistance)));
+        // solarSystemGroup.scale.set(scale, scale, scale);
+        // const starmap = getStarmapMesh();
+        // if (starmap && scale !== 0) {
+        //   starmap.scale.set(1 / scale, 1 / scale, 1 / scale);
+        // }
       }
-      return;
+      return; // Processed two-hand gesture
     }
   }
+
+  // Reset two-hand gesture state if not actively pinching with two hands
   lastTwoHandAngle = null;
   lastTwoHandDistance = null;
   lastTwoHandMidY = null;
   lastTwoHandMidX = null;
+  // Also reset camera zoom specific states
+  lastCameraOffsetDirection = null;
+  initialCameraDistanceToGroup = null;
+
   // One-hand pinch for panning
   if (results.multiHandLandmarks.length > 0) {
+    let pinchDetected = false;
     for (const landmarks of results.multiHandLandmarks) {
       if (isPinch(landmarks)) {
-        const indexTip = landmarks[8];
-        const position = get3DCoords(indexTip.x, indexTip.y);
-        solarSystemGroup.position.copy(position);
-        break;
+        pinchDetected = true;
+        const indexTip = landmarks[8]; // Normalized screen coordinates (0-1)
+        const PAN_SENSITIVITY = 10; // Adjust as needed
+
+        if (lastPanPosition === null) {
+          // First frame of the pinch, just record the position
+          lastPanPosition = { x: indexTip.x, y: indexTip.y };
+        } else {
+          // Calculate delta from the last position
+          const deltaX = indexTip.x - lastPanPosition.x;
+          const deltaY = indexTip.y - lastPanPosition.y;
+
+          // Apply delta to the solar system group's position relative to the camera's orientation
+          const camera = getCamera();
+          const camRight = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0); // Camera's local X (right) axis in world space
+          const camUp = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 1);    // Camera's local Y (up) axis in world space
+
+          // Calculate current distance from camera to the group for scaling pan sensitivity
+          const currentCameraDistanceToGroup = camera.position.distanceTo(solarSystemGroup.position);
+          // Scale factor: sensitivity is normal at 10 units distance. Min factor of 0.1.
+          const panScaleFactor = Math.max(0.1, currentCameraDistanceToGroup / 10.0);
+
+          // Pan horizontally on screen: move group along camera's right vector, scaled by distance
+          solarSystemGroup.position.addScaledVector(camRight, deltaX * PAN_SENSITIVITY * panScaleFactor);
+          
+          // Pan vertically on screen: move group along camera's up vector, scaled by distance
+          solarSystemGroup.position.addScaledVector(camUp, -deltaY * PAN_SENSITIVITY * panScaleFactor);
+
+          // Update last pan position for the next frame
+          lastPanPosition = { x: indexTip.x, y: indexTip.y };
+        }
+        break; // Process only one hand for panning
       }
     }
+    if (!pinchDetected) {
+      lastPanPosition = null; // Reset if no pinch is detected this frame
+    }
+  } else {
+    lastPanPosition = null; // Reset if no hands are detected
   }
 }
 
