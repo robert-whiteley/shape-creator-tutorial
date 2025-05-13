@@ -61,19 +61,21 @@ export function createPlanet({ texture, size, name }, position, shapes) {
     return null;
   }
   const geometry = new THREE.SphereGeometry(size, 32, 32);
-  const group = new THREE.Group();
-  group.userData = { name: name };
   const planetTexture = new THREE.TextureLoader().load(texture);
   const material = new THREE.MeshStandardMaterial({ map: planetTexture });
   const fillMesh = new THREE.Mesh(geometry, material);
   fillMesh.castShadow = true;
   fillMesh.receiveShadow = true;
-  group.add(fillMesh);
-  group.position.copy(position);
-  // If this is earth, add a moon
+
   if (name === 'earth') {
-    const moonPivot = new THREE.Group();
-    group.add(moonPivot);
+    const earthSystemGroup = new THREE.Group(); // Main group for Earth & Moon system
+    earthSystemGroup.userData = { name: name };
+
+    const earthAxialSpinGroup = new THREE.Group(); // Group for Earth's axial spin
+    earthAxialSpinGroup.add(fillMesh); // Add Earth mesh to the spinner
+    earthSystemGroup.add(earthAxialSpinGroup);
+
+    const moonPivot = new THREE.Group(); // Moon's orbital pivot
     const moonGeometry = new THREE.SphereGeometry(0.136 * 0.8, 32, 32);
     const moonTexture = new THREE.TextureLoader().load('textures/moon.jpg');
     const moonMaterial = new THREE.MeshStandardMaterial({ map: moonTexture });
@@ -81,15 +83,32 @@ export function createPlanet({ texture, size, name }, position, shapes) {
     moonMesh.userData = { name: 'moon' };
     moonMesh.castShadow = true;
     moonMesh.receiveShadow = true;
-    moonMesh.position.set(12.0, 0, 0);
+    moonMesh.position.set(12.0, 0, 0); // Position moon relative to its pivot
     moonPivot.add(moonMesh);
-    moonOrbitData.set(group, { pivot: moonPivot, moon: moonMesh });
-    // Add moon orbit line
+    earthSystemGroup.add(moonPivot); // Add moon's pivot to the main system group
+
+    moonOrbitData.set(earthSystemGroup, { 
+      pivot: moonPivot, // For moon's orbit
+      moon: moonMesh,
+      earthSpinnner: earthAxialSpinGroup // For Earth's axial spin
+    });
+
     const moonOrbitLine = createOrbitLine(12.0, 128, 0xffffff, 0.3);
-    group.add(moonOrbitLine);
+    earthSystemGroup.add(moonOrbitLine); // Add orbit line to the main system group
+
+    earthSystemGroup.position.copy(position); // Position the whole system
+    shapes.push(earthSystemGroup);
+    return earthSystemGroup;
+
+  } else {
+    // For other planets, the existing group structure is fine
+    const group = new THREE.Group();
+    group.userData = { name: name };
+    group.add(fillMesh);
+    group.position.copy(position);
+    shapes.push(group);
+    return group;
   }
-  shapes.push(group);
-  return group;
 }
 
 // Helper: Days since J2000.0 (Jan 1, 2000, 12:00 TT)

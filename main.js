@@ -407,34 +407,37 @@ function updateScaleDisplay(val) {
 }
 
 function setPlanetScales(scale) {
-  // Scale all planet meshes
   shapes.forEach(shape => {
-    // Find planet name
-    let planetName = null;
-    for (const planet of planetData) {
-      if (shape.children[0] && shape.children[0].material && shape.children[0].material.map && shape.children[0].material.map.image && shape.children[0].material.map.image.src && shape.children[0].material.map.image.src.includes(planet.texture)) {
-        planetName = planet.name;
-        break;
-      }
-    }
+    const planetName = shape.userData ? shape.userData.name : null;
+
     if (!planetName) return;
-    // Set scale on the mesh (not the group)
-    if (shape.children[0]) {
-      const base = planetBaseSizes[planetName] || 1;
-      shape.children[0].scale.set(scale, scale, scale);
-    }
-    // If this is earth, also scale the moon
-    if (planetName === 'earth' && shape.children.length > 1) {
-      // Find the moon mesh
-      const moonPivot = shape.children.find(child => child.type === 'Group');
-      if (moonPivot && moonPivot.children[0]) {
-        moonPivot.children[0].scale.set(scale, scale, scale);
+
+    if (planetName === 'earth') {
+      // Earth system uses moonOrbitData to get specific meshes
+      if (moonOrbitData.has(shape)) {
+        const { moon: moonMesh, earthSpinnner } = moonOrbitData.get(shape);
+        
+        // Scale Earth mesh (child of earthSpinnner group)
+        if (earthSpinnner && earthSpinnner.children[0]) {
+          earthSpinnner.children[0].scale.set(scale, scale, scale);
+        }
+        
+        // Scale Moon mesh (directly available from moonOrbitData)
+        if (moonMesh) {
+          moonMesh.scale.set(scale, scale, scale);
+        }
+      }
+    } else {
+      // For other planets, the mesh is assumed to be the first child of the shape group
+      if (shape.children[0]) {
+        shape.children[0].scale.set(scale, scale, scale);
       }
     }
   });
-  // Scale the sun mesh
+
+  // Scale the sun mesh (this remains the same)
   const sunMesh = getSunMesh();
-  if (sunMesh && sunBaseSize) {
+  if (sunMesh) { // sunBaseSize is not used for applying scale here, just existence check
     sunMesh.scale.set(scale, scale, scale);
   }
 }
@@ -456,36 +459,48 @@ const animate = () => {
   lastAnimationTime = now;
   simulationTime += deltaMs * speedMultiplier; // 1x = real time, -1x = reverse real time
   updateSimDateDisplay();
+
+  const simDaysElapsedInFrame = (deltaMs * speedMultiplier / (24 * 60 * 60 * 1000));
+
   shapes.forEach(shape => {
-    // Find planet name
-    let planetName = null;
-    for (const planet of planetData) {
-      if (shape.children[0] && shape.children[0].material && shape.children[0].material.map && shape.children[0].material.map.image && shape.children[0].material.map.image.src && shape.children[0].material.map.image.src.includes(planet.texture)) {
-        planetName = planet.name;
-        break;
+    const userData = shape.userData || {};
+    const planetName = userData.name;
+
+    if (shape === selectedShape) {
+      // Skip rotation for selected shape (existing logic persists)
+    } else if (moonOrbitData.has(shape)) { // This is the earthSystemGroup
+      const { pivot: moonOrbitalPivot, earthSpinnner } = moonOrbitData.get(shape);
+
+      // Earth's axial spin (on its dedicated spinner group)
+      if (earthSpinnner && planetSpeeds['earth']) {
+        earthSpinnner.rotation.y += planetSpeeds['earth'].rotation * simDaysElapsedInFrame;
+      }
+
+      // Moon's orbit (on its dedicated pivot)
+      if (moonOrbitalPivot) {
+        moonOrbitalPivot.rotation.y += (2 * Math.PI / 27.32) * simDaysElapsedInFrame;
+      }
+      // The main 'shape' (earthSystemGroup) itself does not get direct axial rotation here.
+
+    } else if (planetName && planetSpeeds[planetName] && planetSpeeds[planetName].rotation !== undefined) {
+      // For other planets (not Earth system, not Sun mesh), apply their axial rotation to the main shape group
+      shape.rotation.y += (planetSpeeds[planetName].rotation || 0) * simDaysElapsedInFrame;
+    }
+
+    // Animate planet orbit around the sun (applies to earthSystemGroup as well)
+    if (planetOrbitData.has(shape)) {
+      const sunOrbitPivot = planetOrbitData.get(shape);
+      // planetName on 'shape.userData.name' (e.g., 'earth') is used to get the correct orbital speed.
+      if (planetName && planetSpeeds[planetName] && planetSpeeds[planetName].orbit !== undefined) {
+        sunOrbitPivot.rotation.y += (planetSpeeds[planetName].orbit || 0) * simDaysElapsedInFrame;
       }
     }
-    if (!planetName) planetName = 'sun'; // fallback
-    // Rotation (planet spin)
-    if (shape !== selectedShape) {
-      shape.rotation.y += (planetSpeeds[planetName]?.rotation || 0) * (deltaMs * speedMultiplier / (24 * 60 * 60 * 1000));
-    }
-    // Animate moon orbit if this is an earth with a moon
-    if (moonOrbitData.has(shape)) {
-      const { pivot } = moonOrbitData.get(shape);
-      // Moon's orbital period: 27.32 days
-      pivot.rotation.y += (2 * Math.PI / 27.32) * (deltaMs * speedMultiplier / (24 * 60 * 60 * 1000));
-    }
-    // Animate planet orbit if it has a pivot (not the sun)
-    if (planetOrbitData.has(shape)) {
-      const pivot = planetOrbitData.get(shape);
-      pivot.rotation.y += (planetSpeeds[planetName]?.orbit || 0) * (deltaMs * speedMultiplier / (24 * 60 * 60 * 1000));
-    }
   });
-  // Animate sun rotation
+
+  // Animate sun rotation (handled separately as it's not in 'shapes')
   const sunMesh = getSunMesh();
   if (sunMesh) {
-    sunMesh.rotation.y += (planetSpeeds['sun']?.rotation || 0) * (deltaMs * speedMultiplier / (24 * 60 * 60 * 1000));
+    sunMesh.rotation.y += (planetSpeeds['sun']?.rotation || 0) * simDaysElapsedInFrame;
   }
 
   const camera = getCamera();
