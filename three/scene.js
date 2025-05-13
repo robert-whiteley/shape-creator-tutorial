@@ -29,7 +29,7 @@ export function initThree({
 }) {
   scene = new THREE.Scene();
   camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 25000);
-  camera.position.set(5, 3, 5); // Set camera at an angle
+  camera.position.set(0, 100, 300); // Zoomed out to just beyond Earth's scaled orbit, maintaining angle
   camera.lookAt(0, 0, 0); // Look at the center
   renderer = new THREE.WebGLRenderer({ alpha: true });
   renderer.setSize(window.innerWidth, window.innerHeight);
