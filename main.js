@@ -19,6 +19,7 @@ import { initScaleControls } from './ui/scaleControls.js';
 import { initGestureController } from './gestures/gestureController.js';
 import { initCameraController } from './camera/cameraController.js';
 import { updateCelestialAnimations } from './three/simulationAnimator.js';
+import { setPlanetScales as setPlanetScalesModule } from './three/visualUtils.js';
 
 let video = document.getElementById('webcam');
 let canvas = document.getElementById('canvas');
@@ -65,37 +66,6 @@ planetData.forEach(planet => {
   planetBaseSizes[planet.name] = planet.size;
   if (planet.name === 'sun') sunBaseSize = planet.size;
 });
-
-function setPlanetScales(scale) {
-  shapes.forEach(shape => {
-    const planetName = shape.userData ? shape.userData.name : null;
-
-    if (!planetName) return;
-
-    if (planetName === 'earth') {
-      if (moonOrbitData.has(shape)) {
-        const { moon: moonMesh, earthSpinnner } = moonOrbitData.get(shape);
-        
-        if (earthSpinnner && earthSpinnner.children[0]) {
-          earthSpinnner.children[0].scale.set(scale, scale, scale);
-        }
-        
-        if (moonMesh) {
-          moonMesh.scale.set(scale, scale, scale);
-        }
-      }
-    } else {
-      if (shape.children[0]) {
-        shape.children[0].scale.set(scale, scale, scale);
-      }
-    }
-  });
-
-  const sunMesh = getSunMesh();
-  if (sunMesh) {
-    sunMesh.scale.set(scale, scale, scale);
-  }
-}
 
 const animate = () => {
   requestAnimationFrame(animate);
@@ -157,7 +127,14 @@ initScaleControls({
   scaleSliderElement: scaleSlider,
   scaleValueElement: scaleValue,
   initialScale: 1,
-  onScaleChange: setPlanetScales
+  onScaleChange: (newScale) => {
+    setPlanetScalesModule({ 
+      scale: newScale, 
+      shapes,
+      moonOrbitData,
+      getSunMesh 
+    });
+  }
 });
 
 animate();
