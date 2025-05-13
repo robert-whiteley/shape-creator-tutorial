@@ -42,6 +42,9 @@ let scaleValue = document.getElementById('scale-value');
 let planetBaseSizes = {};
 let sunBaseSize = null;
 
+let followedObject = null; // The 3D object mesh the camera is currently following
+let worldOffsetToFollowTarget = new THREE.Vector3(); // Desired world-space offset from target to camera
+
 // --- UI Update for Bodies List ---
 const bodiesListUl = document.getElementById('bodies-list');
 
@@ -140,17 +143,22 @@ function handleBodyClick(bodyNameKey) {
   if (targetObjectMesh) {
     targetObjectMesh.getWorldPosition(targetPosition);
     const offsetDistance = specificBaseSize * baseOffsetFactor;
-    const cameraOffsetVector = new THREE.Vector3(0, 0.75, 1);
-    cameraOffsetVector.normalize();
-    cameraOffsetVector.multiplyScalar(offsetDistance);
+    const cameraOffsetDirection = new THREE.Vector3(0, 0.75, 1);
+    cameraOffsetDirection.normalize();
+    cameraOffsetDirection.multiplyScalar(offsetDistance);
     const solarSystemWorldQuaternion = solarSystemGroup.getWorldQuaternion(new THREE.Quaternion());
-    cameraOffsetVector.applyQuaternion(solarSystemWorldQuaternion);
-    const finalCameraPosition = new THREE.Vector3().copy(targetPosition).add(cameraOffsetVector);
+    cameraOffsetDirection.applyQuaternion(solarSystemWorldQuaternion);
+    const finalCameraPosition = new THREE.Vector3().copy(targetPosition).add(cameraOffsetDirection);
     camera.position.copy(finalCameraPosition);
     camera.lookAt(targetPosition);
     camera.updateProjectionMatrix();
 
+    // Setup for following
+    followedObject = targetObjectMesh;
+    worldOffsetToFollowTarget.subVectors(finalCameraPosition, targetPosition); // Store the calculated world offset
+
   } else {
+    followedObject = null; // Clear followed object if no target found
   }
 }
 
@@ -192,6 +200,7 @@ function handleHandResults(results) {
     const leftPinch = isPinch(l);
     const rightPinch = isPinch(r);
     if (leftPinch && rightPinch) {
+      followedObject = null; // Gesture started, stop following
       const camera = getCamera(); // Get camera instance
       const dx = r[8].x - l[8].x;
       const dy = r[8].y - l[8].y;
@@ -295,6 +304,7 @@ function handleHandResults(results) {
     let pinchDetected = false;
     for (const landmarks of results.multiHandLandmarks) {
       if (isPinch(landmarks)) {
+        followedObject = null; // Gesture started, stop following
         pinchDetected = true;
         const indexTip = landmarks[8]; // Normalized screen coordinates (0-1)
         const PAN_SENSITIVITY = 10; // Adjust as needed
@@ -435,6 +445,15 @@ const animate = () => {
   const sunMesh = getSunMesh();
   if (sunMesh) {
     sunMesh.rotation.y += (planetSpeeds['sun']?.rotation || 0) * (deltaMs * speedMultiplier / (24 * 60 * 60 * 1000));
+  }
+
+  // Camera following logic
+  if (followedObject) {
+    const camera = getCamera();
+    const currentTargetWorldPos = followedObject.getWorldPosition(new THREE.Vector3());
+    camera.position.copy(currentTargetWorldPos).add(worldOffsetToFollowTarget);
+    camera.lookAt(currentTargetWorldPos);
+    // camera.updateProjectionMatrix(); // Usually only needed if FOV, aspect, near/far changes. lookAt and position updates are reflected.
   }
 
   getRenderer().render(getScene(), getCamera());
