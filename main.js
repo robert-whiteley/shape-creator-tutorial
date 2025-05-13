@@ -49,9 +49,15 @@ export function updateBodiesList() {
   if (!bodiesListUl) return;
   bodiesListUl.innerHTML = ''; // Clear existing items
 
-  // Create Sun as the top-level item
+  // --- Sun ---
   const sunLi = document.createElement('li');
-  sunLi.textContent = 'Sun'; 
+  const sunSpan = document.createElement('span'); // Create a span for the text
+  sunSpan.textContent = 'Sun';
+  sunSpan.style.cursor = 'pointer'; // Indicate clickable
+  sunSpan.addEventListener('click', () => { // Attach listener to span
+    handleBodyClick('sun');
+  });
+  sunLi.appendChild(sunSpan); // Add span to li
   bodiesListUl.appendChild(sunLi);
 
   const planetsUl = document.createElement('ul');
@@ -63,18 +69,89 @@ export function updateBodiesList() {
 
     const planetDisplayName = planetNameLower.charAt(0).toUpperCase() + planetNameLower.slice(1);
     const planetLi = document.createElement('li');
-    planetLi.textContent = planetDisplayName;
+    const planetSpan = document.createElement('span'); // Create a span for the text
+    planetSpan.textContent = planetDisplayName;
+    planetSpan.style.cursor = 'pointer'; // Indicate clickable
+    planetSpan.dataset.bodyName = planetNameLower; // Keep data attribute if needed, though less critical on span
+    planetSpan.addEventListener('click', () => { // Attach listener to span
+      handleBodyClick(planetNameLower);
+    });
+    planetLi.appendChild(planetSpan); // Add span to li
     planetsUl.appendChild(planetLi);
-    
+
     if (planetNameLower === 'earth') {
       const moonsUl = document.createElement('ul');
       planetLi.appendChild(moonsUl);
 
       const moonLi = document.createElement('li');
-      moonLi.textContent = 'Moon';
+      const moonSpan = document.createElement('span'); // Create a span for the text
+      moonSpan.textContent = 'Moon';
+      moonSpan.style.cursor = 'pointer'; // Indicate clickable
+      moonSpan.addEventListener('click', () => { // Attach listener to span
+        handleBodyClick('moon');
+      });
+      moonLi.appendChild(moonSpan); // Add span to li
       moonsUl.appendChild(moonLi);
     }
   });
+}
+
+// New function to handle camera jump
+function handleBodyClick(bodyNameKey) {
+  const camera = getCamera();
+  let targetObjectMesh = null;
+  const targetPosition = new THREE.Vector3();
+  let baseOffsetFactor = 15;
+  let specificBaseSize = 1;
+
+  if (bodyNameKey === 'sun') {
+    targetObjectMesh = getSunMesh();
+    if (targetObjectMesh && typeof sunBaseSize === 'number') {
+        specificBaseSize = sunBaseSize;
+    }
+    baseOffsetFactor = 5;
+  } else if (bodyNameKey === 'moon') {
+    const earthShapeGroup = shapes.find(s => s.userData && s.userData.name === 'earth');
+    if (earthShapeGroup && moonOrbitData.has(earthShapeGroup)) {
+      const { moon } = moonOrbitData.get(earthShapeGroup);
+      if (moon && moon.userData && moon.userData.name === 'moon') {
+        targetObjectMesh = moon;
+        if (planetBaseSizes['earth']) {
+          specificBaseSize = (planetBaseSizes['earth'] || 1) * 0.273;
+        } else {
+          specificBaseSize = 0.5 * 0.8 * 0.273;
+        }
+        baseOffsetFactor = 20;
+      }
+    }
+  } else { // It's a planet
+    const shapeGroup = shapes.find(s => s.userData && s.userData.name === bodyNameKey);
+    if (shapeGroup && shapeGroup.children[0]) {
+      targetObjectMesh = shapeGroup.children[0];
+      if (planetBaseSizes[bodyNameKey]) {
+        specificBaseSize = planetBaseSizes[bodyNameKey];
+      } else {
+        const planetEntry = planetData.find(p => p.name === bodyNameKey);
+        if (planetEntry) specificBaseSize = planetEntry.size;
+      }
+    }
+  }
+
+  if (targetObjectMesh) {
+    targetObjectMesh.getWorldPosition(targetPosition);
+    const offsetDistance = specificBaseSize * baseOffsetFactor;
+    const cameraOffsetVector = new THREE.Vector3(0, 0.75, 1);
+    cameraOffsetVector.normalize();
+    cameraOffsetVector.multiplyScalar(offsetDistance);
+    const solarSystemWorldQuaternion = solarSystemGroup.getWorldQuaternion(new THREE.Quaternion());
+    cameraOffsetVector.applyQuaternion(solarSystemWorldQuaternion);
+    const finalCameraPosition = new THREE.Vector3().copy(targetPosition).add(cameraOffsetVector);
+    camera.position.copy(finalCameraPosition);
+    camera.lookAt(targetPosition);
+    camera.updateProjectionMatrix();
+
+  } else {
+  }
 }
 
 // New rotation state variables for two-hand gestures
@@ -149,6 +226,8 @@ function handleHandResults(results) {
         // Original effect: solarSystemGroup.rotation.y = lastSolarSystemRotationY + deltaAngle;
         // The 'deltaAngle' was (angle - lastTwoHandAngle).
         // Positive totalDeltaAngleY (hands rotate counter-clockwise from above) should rotate scene CCW.
+        // However, the original was `+ deltaAngle` where `deltaAngle` was current - previous.
+        // Let's keep it direct: positive totalDeltaAngleY rotates positively around world Y.
         const rotY = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), totalDeltaAngleY);
         // Apply world Y rotation first to the initial state.
         // To match typical screen-based rotation where rotating hands right (CW) spins object right (CW from top view):
@@ -357,6 +436,7 @@ const animate = () => {
   if (sunMesh) {
     sunMesh.rotation.y += (planetSpeeds['sun']?.rotation || 0) * (deltaMs * speedMultiplier / (24 * 60 * 60 * 1000));
   }
+
   getRenderer().render(getScene(), getCamera());
 };
 

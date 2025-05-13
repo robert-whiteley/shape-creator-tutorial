@@ -62,6 +62,7 @@ export function createPlanet({ texture, size, name }, position, shapes) {
   }
   const geometry = new THREE.SphereGeometry(size, 32, 32);
   const group = new THREE.Group();
+  group.userData = { name: name };
   const planetTexture = new THREE.TextureLoader().load(texture);
   const material = new THREE.MeshStandardMaterial({ map: planetTexture });
   const fillMesh = new THREE.Mesh(geometry, material);
@@ -77,6 +78,7 @@ export function createPlanet({ texture, size, name }, position, shapes) {
     const moonTexture = new THREE.TextureLoader().load('textures/moon.jpg');
     const moonMaterial = new THREE.MeshStandardMaterial({ map: moonTexture });
     const moonMesh = new THREE.Mesh(moonGeometry, moonMaterial);
+    moonMesh.userData = { name: 'moon' };
     moonMesh.castShadow = true;
     moonMesh.receiveShadow = true;
     moonMesh.position.set(12.0, 0, 0);
