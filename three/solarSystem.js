@@ -192,16 +192,29 @@ export function createOrbitLine(semiMajorAxis, eccentricity, inclinationRad, nod
 }
 
 export function createPlanet({ texture, size, name }, position, shapes) {
-  if (name === 'sun') {
-    // Do not create a mesh for the sun; it will be represented by a DirectionalLight
-    return null;
-  }
+  // if (name === 'sun') {
+  //   // Do not create a mesh for the sun; it will be represented by a DirectionalLight
+  //   return null;
+  // }
   const geometry = new THREE.SphereGeometry(size, 32, 32);
   const planetTexture = new THREE.TextureLoader().load(texture);
-  const material = new THREE.MeshStandardMaterial({ map: planetTexture });
+  
+  let material;
+  if (name === 'sun') {
+    // Sun should glow and not be affected by scene lights
+    material = new THREE.MeshBasicMaterial({ map: planetTexture, emissive: 0xffddaa, emissiveIntensity: 0.6 });
+  } else {
+    material = new THREE.MeshStandardMaterial({ map: planetTexture });
+  }
+
   const fillMesh = new THREE.Mesh(geometry, material);
   fillMesh.castShadow = true;
   fillMesh.receiveShadow = true;
+
+  if (name === 'sun') {
+    fillMesh.castShadow = false;
+    fillMesh.receiveShadow = false;
+  }
 
   const planetTilt = planetPhysicalData[name]?.axialTilt || 0; // Get axial tilt, default to 0
   const axialSpinGroup = new THREE.Group(); // Group for axial spin and tilt

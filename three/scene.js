@@ -48,16 +48,7 @@ export function initThree({
   sunLight.shadow.camera.far = 15000; // Adjusted for solar system scale (max orbit ~7780)
   sunLight.shadow.bias = -0.005;
   scene.add(sunLight);
-  // Add a firey sun mesh at the center (not affected by lighting)
-  const sunInfo = planetData.find(p => p.name === 'sun');
-  const sunGeometry = new THREE.SphereGeometry(sunInfo.size, 32, 32);
-  const sunTexture = new THREE.TextureLoader().load('textures/sun.jpg');
-  const sunMaterial = new THREE.MeshBasicMaterial({ map: sunTexture });
-  sunMesh = new THREE.Mesh(sunGeometry, sunMaterial);
-  sunMesh.position.set(0, 0, 0);
-  sunMesh.castShadow = false;
-  sunMesh.receiveShadow = false;
-  solarSystemGroup.add(sunMesh);
+
   // Add solar system group
   scene.add(solarSystemGroup);
   // Real mean orbital radii in km (center-to-center, semi-major axis)
@@ -77,35 +68,43 @@ export function initThree({
   // Add planets and orbits
   const reversedPlanets = [...planetData].reverse();
   const days = daysSinceJ2000();
-  reversedPlanets.forEach((planet, i) => {
-    if (planet.name === 'sun') {
-      // The sun is only a light, not a mesh
-      return;
-    }
+
+  // Process all bodies, including the Sun, through createPlanet
+  planetData.forEach((planetBodyData) => { // Changed from reversedPlanets and iterating over planetData directly
+    // if (planet.name === 'sun') {
+    //   // The sun is only a light, not a mesh -- This comment is no longer true, sun is created via createPlanet
+    //   return;
+    // }
+
     // Use real orbital radius for position (scaled)
-    const orbitRadiusKm = planetOrbitRadiiKm[planet.name] || 0;
-    const scaledSemiMajorAxis = orbitRadiusKm * ORBIT_SCALE; // This is 'a'
+    // For the Sun, orbitRadiusKm will be undefined, scaledSemiMajorAxis will be 0, initialX will be 0.
+    const orbitRadiusKm = planetOrbitRadiiKm[planetBodyData.name]; 
+    const scaledSemiMajorAxis = orbitRadiusKm ? orbitRadiusKm * ORBIT_SCALE : 0;
+    const initialX = scaledSemiMajorAxis;
+    const pos = new THREE.Vector3(initialX, 0, 0); // Sun will be at (0,0,0)
 
-    // Initial position (will be refined by Keplerian elements later if we set initial anomaly)
-    // For now, let's keep the initial placement logic similar, but it will be overridden by animation.
-    const initialX = scaledSemiMajorAxis; // Simplistic initial placement
-    const pos = new THREE.Vector3(initialX, 0, 0);
+    const planetGroup = createPlanet(planetBodyData, pos.clone(), shapes);
+    if (!planetGroup) return; // Should not happen for the sun now
 
-    const planetGroup = createPlanet(planet, pos.clone(), shapes);
-    if (!planetGroup) return;
+    // If this is the Sun, assign its visual part to the module's sunMesh variable
+    // so getSunMesh() can still return it if needed elsewhere (e.g. UI, info display).
+    // The sun's planetGroup contains the axialSpinGroup as its first child.
+    if (planetBodyData.name === 'sun') {
+      sunMesh = planetGroup; // Or planetGroup.userData.axialSpinGroup, or planetGroup.children[0].children[0] for the raw mesh
+                           // Let's assign the main group for now. getSunMesh might be used to get the overall object.
+    }
 
-    // Get eccentricity
-    const eccentricity = planetPhysicalData[planet.name]?.eccentricity || 0;
-    // Get inclination in degrees and convert to radians
-    const inclinationDeg = planetPhysicalData[planet.name]?.inclination || 0;
+    // Get eccentricity, inclination, etc. - For Sun, these are mostly 0 or not applicable for orbit
+    const eccentricity = planetPhysicalData[planetBodyData.name]?.eccentricity || 0;
+    const inclinationDeg = planetPhysicalData[planetBodyData.name]?.inclination || 0;
     const inclinationRad = inclinationDeg * (Math.PI / 180);
 
     // Get Longitude of Ascending Node (Ω) in degrees and convert to radians
-    const nodeDeg = planetPhysicalData[planet.name]?.node || 0;
+    const nodeDeg = planetPhysicalData[planetBodyData.name]?.node || 0;
     const nodeRad = nodeDeg * (Math.PI / 180);
 
     // Get Argument of Perihelion (ω) in degrees and convert to radians
-    let periDeg = planetPhysicalData[planet.name]?.peri || 0;
+    let periDeg = planetPhysicalData[planetBodyData.name]?.peri || 0;
     if (periDeg < 0) periDeg += 360; // Ensure positive angle
     const periRad = periDeg * (Math.PI / 180);
 
@@ -128,16 +127,16 @@ export function initThree({
       node: nodeRad,     // Store Longitude of Ascending Node in radians
       peri: periRad,     // Store Argument of Perihelion in radians
       // We also need mean motion 'n', which is planetSpeeds[planet.name].orbit
-      n: planetSpeeds[planet.name]?.orbit || 0,
+      n: planetSpeeds[planetBodyData.name]?.orbit || 0,
       // We'll need a way to track the current Mean Anomaly (M) for each planet.
       // Let's initialize it based on the initial rotation, which simulated a starting position.
       // M = n * t. If initial rotation was fraction * 2PI, then M_initial = fraction * 2PI
       // M: (planetPhysicalData[planet.name]?.orbit > 0) ? ((days / planetPhysicalData[planet.name].orbit) % 1) * 2 * Math.PI : 0
       // New M calculation based on M0 at J2000.0:
       M: (() => {
-        const m0Deg = planetPhysicalData[planet.name]?.m0 || 0;
+        const m0Deg = planetPhysicalData[planetBodyData.name]?.m0 || 0;
         let m0Rad = m0Deg * (Math.PI / 180);
-        const currentN = planetSpeeds[planet.name]?.orbit || 0;
+        const currentN = planetSpeeds[planetBodyData.name]?.orbit || 0;
         let initialM = m0Rad + (currentN * days);
         initialM = initialM % (2 * Math.PI); // Normalize to [0, 2PI)
         if (initialM < 0) initialM += (2 * Math.PI); // Ensure positive
@@ -171,10 +170,11 @@ export function initThree({
     // planetOrbitData.set(planetGroup, pivot); // OLD: storing pivot
 
     // Draw orbit line at correct radius (this will need to become an elliptical line)
-    const orbitLine = createOrbitLine(scaledSemiMajorAxis, eccentricity, inclinationRad, nodeRad, periRad, 128, 0xffffff, 0.2);
-    // The orbit line should also be offset so the Sun is at its focus.
-    // For a simple circle, it's centered at the sun.
-    solarSystemGroup.add(orbitLine);
+    // Only draw orbit lines for bodies that actually orbit
+    if (planetBodyData.name !== 'sun' && scaledSemiMajorAxis > 0) { 
+      const orbitLine = createOrbitLine(scaledSemiMajorAxis, eccentricity, inclinationRad, nodeRad, periRad, 128, 0xffffff, 0.2);
+      solarSystemGroup.add(orbitLine);
+    }
   });
   // Add starmap sphere (background)
   // Determine the maximum orbital radius to size the starmap appropriately

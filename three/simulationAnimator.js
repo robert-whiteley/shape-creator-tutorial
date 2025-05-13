@@ -162,8 +162,11 @@ export function updateCelestialAnimations({
   });
 
   // Animate sun rotation (handled separately as it's not in 'shapes')
-  const sunMesh = getSunMesh();
-  if (sunMesh && planetSpeeds['sun'] && planetSpeeds['sun'].rotation !== undefined) {
-    sunMesh.rotation.y += (planetSpeeds['sun'].rotation || 0) * simDaysElapsedInFrame;
-  }
+  // const sunMesh = getSunMesh();
+  // if (sunMesh && planetSpeeds['sun'] && planetSpeeds['sun'].rotation !== undefined) {
+  //   // If sunMesh from getSunMesh() is the axialSpinGroup itself, this would be fine.
+  //   // If it's an outer group, we might need sunMesh.userData.axialSpinGroup.rotation.y
+  //   // However, the Sun is now part of 'shapes' and should be handled in the loop above.
+  //   sunMesh.rotation.y += (planetSpeeds['sun'].rotation || 0) * simDaysElapsedInFrame;
+  // }
 } 
