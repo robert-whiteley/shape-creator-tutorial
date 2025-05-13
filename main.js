@@ -45,6 +45,16 @@ let sunBaseSize = null;
 let followedObject = null; // The 3D object mesh the camera is currently following
 let worldOffsetToFollowTarget = new THREE.Vector3(); // Desired world-space offset from target to camera
 
+// --- Camera Animation State ---
+let isCameraAnimating = false;
+let animationStartTime = 0;
+const ANIMATION_DURATION = 1500; // Fly-to duration in milliseconds (e.g., 1.5 seconds)
+let cameraAnimationStartPos = new THREE.Vector3();
+let cameraAnimationEndPos = new THREE.Vector3();
+let cameraAnimationStartLookAt = new THREE.Vector3();
+let cameraAnimationEndLookAt = new THREE.Vector3();
+let targetObjectForAnimation = null; // Stores the mesh to be followed after animation
+
 // --- UI Update for Bodies List ---
 const bodiesListUl = document.getElementById('bodies-list');
 
@@ -99,13 +109,17 @@ export function updateBodiesList() {
   });
 }
 
-// New function to handle camera jump
 function handleBodyClick(bodyNameKey) {
   const camera = getCamera();
   let targetObjectMesh = null;
-  const targetPosition = new THREE.Vector3();
+  const targetBodyWorldPosition = new THREE.Vector3(); // World position of the body itself
   let baseOffsetFactor = 15;
   let specificBaseSize = 1;
+
+  // Cancel any ongoing follow or animation before starting a new one
+  followedObject = null;
+  isCameraAnimating = false;
+  targetObjectForAnimation = null;
 
   if (bodyNameKey === 'sun') {
     targetObjectMesh = getSunMesh();
@@ -141,24 +155,33 @@ function handleBodyClick(bodyNameKey) {
   }
 
   if (targetObjectMesh) {
-    targetObjectMesh.getWorldPosition(targetPosition);
+    targetObjectMesh.getWorldPosition(targetBodyWorldPosition);
+
+    // Calculate desired final camera position (end of animation)
     const offsetDistance = specificBaseSize * baseOffsetFactor;
     const cameraOffsetDirection = new THREE.Vector3(0, 0.75, 1);
     cameraOffsetDirection.normalize();
     cameraOffsetDirection.multiplyScalar(offsetDistance);
     const solarSystemWorldQuaternion = solarSystemGroup.getWorldQuaternion(new THREE.Quaternion());
     cameraOffsetDirection.applyQuaternion(solarSystemWorldQuaternion);
-    const finalCameraPosition = new THREE.Vector3().copy(targetPosition).add(cameraOffsetDirection);
-    camera.position.copy(finalCameraPosition);
-    camera.lookAt(targetPosition);
-    camera.updateProjectionMatrix();
+    cameraAnimationEndPos.copy(targetBodyWorldPosition).add(cameraOffsetDirection);
 
-    // Setup for following
-    followedObject = targetObjectMesh;
-    worldOffsetToFollowTarget.subVectors(finalCameraPosition, targetPosition); // Store the calculated world offset
+    // Set up animation parameters
+    cameraAnimationStartPos.copy(camera.position); // Current camera position is the start
+    
+    // Current lookAt point (approximated)
+    const tempLookAt = new THREE.Vector3();
+    camera.getWorldDirection(tempLookAt).multiplyScalar(10).add(camera.position); // Point 10 units in front of camera
+    cameraAnimationStartLookAt.copy(tempLookAt); 
+
+    cameraAnimationEndLookAt.copy(targetBodyWorldPosition); // Final lookAt is the target body center
+
+    targetObjectForAnimation = targetObjectMesh; // Store for follow-up after animation
+    isCameraAnimating = true;
+    animationStartTime = Date.now();
 
   } else {
-    followedObject = null; // Clear followed object if no target found
+    // No target found, ensure animation state is reset (already done at the top)
   }
 }
 
@@ -200,8 +223,9 @@ function handleHandResults(results) {
     const leftPinch = isPinch(l);
     const rightPinch = isPinch(r);
     if (leftPinch && rightPinch) {
-      followedObject = null; // Gesture started, stop following
-      const camera = getCamera(); // Get camera instance
+      isCameraAnimating = false; // Gesture started, cancel fly-to animation
+      followedObject = null;      // Also stop any following
+      const camera = getCamera(); 
       const dx = r[8].x - l[8].x;
       const dy = r[8].y - l[8].y;
       const angle = Math.atan2(dy, dx);
@@ -304,7 +328,8 @@ function handleHandResults(results) {
     let pinchDetected = false;
     for (const landmarks of results.multiHandLandmarks) {
       if (isPinch(landmarks)) {
-        followedObject = null; // Gesture started, stop following
+        isCameraAnimating = false; // Gesture started, cancel fly-to animation
+        followedObject = null;      // Also stop any following
         pinchDetected = true;
         const indexTip = landmarks[8]; // Normalized screen coordinates (0-1)
         const PAN_SENSITIVITY = 10; // Adjust as needed
@@ -447,16 +472,42 @@ const animate = () => {
     sunMesh.rotation.y += (planetSpeeds['sun']?.rotation || 0) * (deltaMs * speedMultiplier / (24 * 60 * 60 * 1000));
   }
 
-  // Camera following logic
-  if (followedObject) {
-    const camera = getCamera();
-    const currentTargetWorldPos = followedObject.getWorldPosition(new THREE.Vector3());
-    camera.position.copy(currentTargetWorldPos).add(worldOffsetToFollowTarget);
-    camera.lookAt(currentTargetWorldPos);
-    // camera.updateProjectionMatrix(); // Usually only needed if FOV, aspect, near/far changes. lookAt and position updates are reflected.
+  const camera = getCamera();
+  const tempWorldPos = new THREE.Vector3(); // For reuse
+  const tempLookAt = new THREE.Vector3(); // For reuse
+
+  if (isCameraAnimating) {
+    const elapsed = Date.now() - animationStartTime;
+    let progress = Math.min(elapsed / ANIMATION_DURATION, 1.0);
+    
+    // Simple ease-out: progress = 1 - Math.pow(1 - progress, 3); // Optional easing
+    // Smoother step (ease-in-out):
+    progress = progress < 0.5 ? 2 * progress * progress : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+
+    camera.position.lerpVectors(cameraAnimationStartPos, cameraAnimationEndPos, progress);
+    tempLookAt.lerpVectors(cameraAnimationStartLookAt, cameraAnimationEndLookAt, progress);
+    camera.lookAt(tempLookAt);
+
+    if (progress === 1.0) {
+      isCameraAnimating = false;
+      if (targetObjectForAnimation) {
+        followedObject = targetObjectForAnimation;
+        targetObjectForAnimation = null;
+        // Update worldOffsetToFollowTarget based on the final animated position
+        // Ensure camera.position is exactly cameraAnimationEndPos before calculating this offset
+        camera.position.copy(cameraAnimationEndPos); // Ensure exact end position
+        followedObject.getWorldPosition(tempWorldPos);
+        worldOffsetToFollowTarget.subVectors(camera.position, tempWorldPos);
+      } 
+    }
+  } else if (followedObject) {
+    // Camera following logic (runs if not animating and there's a followed object)
+    followedObject.getWorldPosition(tempWorldPos);
+    camera.position.copy(tempWorldPos).add(worldOffsetToFollowTarget);
+    camera.lookAt(tempWorldPos);
   }
 
-  getRenderer().render(getScene(), getCamera());
+  getRenderer().render(getScene(), camera);
 };
 
 initThree({
