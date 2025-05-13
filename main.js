@@ -18,6 +18,7 @@ import { initSimDateDisplay, updateSimDateDisplay as updateSimDateDisplayModule 
 import { initScaleControls } from './ui/scaleControls.js';
 import { initGestureController } from './gestures/gestureController.js';
 import { initCameraController } from './camera/cameraController.js';
+import { updateCelestialAnimations } from './three/simulationAnimator.js';
 
 let video = document.getElementById('webcam');
 let canvas = document.getElementById('canvas');
@@ -106,34 +107,14 @@ const animate = () => {
 
   const simDaysElapsedInFrame = (deltaMs * speedMultiplier / (24 * 60 * 60 * 1000));
 
-  shapes.forEach(shape => {
-    const userData = shape.userData || {};
-    const planetName = userData.name;
-
-    if (moonOrbitData.has(shape)) {
-      const { pivot: moonOrbitalPivot, earthSpinnner } = moonOrbitData.get(shape);
-      if (earthSpinnner && planetSpeeds['earth']) {
-        earthSpinnner.rotation.y += planetSpeeds['earth'].rotation * simDaysElapsedInFrame;
-      }
-      if (moonOrbitalPivot) {
-        moonOrbitalPivot.rotation.y += (2 * Math.PI / 27.32) * simDaysElapsedInFrame;
-      }
-    } else if (planetName && planetSpeeds[planetName] && planetSpeeds[planetName].rotation !== undefined) {
-      shape.rotation.y += (planetSpeeds[planetName].rotation || 0) * simDaysElapsedInFrame;
-    }
-
-    if (planetOrbitData.has(shape)) {
-      const sunOrbitPivot = planetOrbitData.get(shape);
-      if (planetName && planetSpeeds[planetName] && planetSpeeds[planetName].orbit !== undefined) {
-        sunOrbitPivot.rotation.y += (planetSpeeds[planetName].orbit || 0) * simDaysElapsedInFrame;
-      }
-    }
+  updateCelestialAnimations({
+    simDaysElapsedInFrame,
+    shapes,
+    getSunMesh,
+    planetSpeeds,
+    moonOrbitData,
+    planetOrbitData
   });
-
-  const sunMesh = getSunMesh();
-  if (sunMesh) {
-    sunMesh.rotation.y += (planetSpeeds['sun']?.rotation || 0) * simDaysElapsedInFrame;
-  }
 
   cameraController.updateCamera();
 
