@@ -39,11 +39,13 @@ export function initThree({
   const ambientLight = new THREE.AmbientLight(0xffffff, 0.3);
   scene.add(ambientLight);
   // Add a shadow-casting PointLight at the sun's position
-  const sunLight = new THREE.PointLight(0xffffff, 1.2, 100);
+  const sunLight = new THREE.PointLight(0xffffff, 1.2, 0); // Set range to 0 for infinite
   sunLight.position.set(0, 0, 0); // Sun is at the origin
   sunLight.castShadow = true;
-  sunLight.shadow.mapSize.width = 1024;
-  sunLight.shadow.mapSize.height = 1024;
+  sunLight.shadow.mapSize.width = 1024; // Consider increasing for better shadow quality if needed
+  sunLight.shadow.mapSize.height = 1024; // Consider increasing for better shadow quality if needed
+  sunLight.shadow.camera.near = 1; // Adjusted for solar system scale
+  sunLight.shadow.camera.far = 15000; // Adjusted for solar system scale (max orbit ~7780)
   sunLight.shadow.bias = -0.005;
   scene.add(sunLight);
   // Add a firey sun mesh at the center (not affected by lighting)
