@@ -13,27 +13,17 @@ import { setupHands, isPinch, areIndexFingersClose } from './gestures/hands.js';
 import { initCamera } from './utils/camera.js';
 import { initSpeedControls } from './ui/controls.js';
 import { get3DCoords } from './utils/helpers.js';
+import { initBodyList } from './ui/bodyList.js';
 
 let video = document.getElementById('webcam');
 let canvas = document.getElementById('canvas');
 let ctx = canvas.getContext('2d');
 let shapes = [];
-let currentShape = null;
-let isPinching = false;
-let shapeScale = 1;
-let originalDistance = null;
-let selectedShape = null;
-let shapeCreatedThisPinch = false;
-let lastShapeCreationTime = 0;
-let shapeCreationCooldown = 1000;
 let solarSystemGroup = new THREE.Group();
 let lastTwoHandDistance = null;
-let lastSolarSystemScale = 1;
 let livePreviousPinchDistance = null;
 let speedMultiplier = 1;
 let lastPanPosition = null;
-let lastCameraOffsetDirection = null;
-let initialCameraDistanceToGroup = null;
 let lastAnimationTime = Date.now();
 let speedSlider = document.getElementById('speed-slider');
 let speedValue = document.getElementById('speed-value');
@@ -56,156 +46,49 @@ let cameraAnimationStartLookAt = new THREE.Vector3();
 let cameraAnimationEndLookAt = new THREE.Vector3();
 let targetObjectForAnimation = null; // Stores the mesh to be followed after animation
 
-// --- UI Update for Bodies List ---
-const bodiesListUl = document.getElementById('bodies-list');
-
-export function updateBodiesList() {
-  if (!bodiesListUl) return;
-  bodiesListUl.innerHTML = ''; // Clear existing items
-
-  // --- Sun ---
-  const sunLi = document.createElement('li');
-  const sunSpan = document.createElement('span'); // Create a span for the text
-  sunSpan.textContent = 'Sun';
-  sunSpan.style.cursor = 'pointer'; // Indicate clickable
-  sunSpan.addEventListener('click', () => { // Attach listener to span
-    handleBodyClick('sun');
-  });
-  sunLi.appendChild(sunSpan); // Add span to li
-  bodiesListUl.appendChild(sunLi);
-
-  const planetsUl = document.createElement('ul');
-  sunLi.appendChild(planetsUl);
-
-  planetData.forEach(planetEntry => {
-    const planetNameLower = planetEntry.name.toLowerCase();
-    if (planetNameLower === 'sun') return;
-
-    const planetDisplayName = planetNameLower.charAt(0).toUpperCase() + planetNameLower.slice(1);
-    const planetLi = document.createElement('li');
-    const planetSpan = document.createElement('span'); // Create a span for the text
-    planetSpan.textContent = planetDisplayName;
-    planetSpan.style.cursor = 'pointer'; // Indicate clickable
-    planetSpan.dataset.bodyName = planetNameLower; // Keep data attribute if needed, though less critical on span
-    planetSpan.addEventListener('click', () => { // Attach listener to span
-      handleBodyClick(planetNameLower);
-    });
-    planetLi.appendChild(planetSpan); // Add span to li
-    planetsUl.appendChild(planetLi);
-
-    if (planetNameLower === 'earth') {
-      const moonsUl = document.createElement('ul');
-      planetLi.appendChild(moonsUl);
-
-      const moonLi = document.createElement('li');
-      const moonSpan = document.createElement('span'); // Create a span for the text
-      moonSpan.textContent = 'Moon';
-      moonSpan.style.cursor = 'pointer'; // Indicate clickable
-      moonSpan.addEventListener('click', () => { // Attach listener to span
-        handleBodyClick('moon');
-      });
-      moonLi.appendChild(moonSpan); // Add span to li
-      moonsUl.appendChild(moonLi);
-    }
-  });
-}
-
-function handleBodyClick(bodyNameKey) {
-  const camera = getCamera();
-  let targetObjectMesh = null;
-  const targetBodyWorldPosition = new THREE.Vector3(); // World position of the body itself
-  let specificBaseSize = 1;
-
-  // Cancel any ongoing follow or animation before starting a new one
-  followedObject = null;
-  isCameraAnimating = false;
-  targetObjectForAnimation = null;
-
-  if (bodyNameKey === 'sun') {
-    targetObjectMesh = getSunMesh();
-    if (targetObjectMesh && typeof sunBaseSize === 'number') {
-        specificBaseSize = sunBaseSize;
-    }
-  } else if (bodyNameKey === 'moon') {
-    const earthShapeGroup = shapes.find(s => s.userData && s.userData.name === 'earth');
-    if (earthShapeGroup && moonOrbitData.has(earthShapeGroup)) {
-      const { moon } = moonOrbitData.get(earthShapeGroup);
-      if (moon && moon.userData && moon.userData.name === 'moon') {
-        targetObjectMesh = moon;
-        if (planetBaseSizes['earth']) {
-          specificBaseSize = (planetBaseSizes['earth'] || 1) * 0.273;
-        } else {
-          // Fallback if earth's base size isn't found (e.g. before full init)
-          // Use a generic moon size relative to a default planet size
-          const defaultPlanetSize = 0.5; // A typical base size for planets if not specified
-          const moonToPlanetRatio = 0.273; // Moon is ~27.3% size of Earth
-          specificBaseSize = defaultPlanetSize * moonToPlanetRatio;
-        }
-      }
-    }
-  } else { // It's a planet
-    const shapeGroup = shapes.find(s => s.userData && s.userData.name === bodyNameKey);
-    if (shapeGroup && shapeGroup.children[0]) {
-      targetObjectMesh = shapeGroup.children[0];
-      if (planetBaseSizes[bodyNameKey]) {
-        specificBaseSize = planetBaseSizes[bodyNameKey];
-      } else {
-        const planetEntry = planetData.find(p => p.name === bodyNameKey);
-        if (planetEntry) {
-            specificBaseSize = planetEntry.size;
-        } else {
-            specificBaseSize = 0.5; // Default if not found
-        }
-      }
-    }
-  }
-
-  if (targetObjectMesh) {
-    targetObjectMesh.getWorldPosition(targetBodyWorldPosition);
-
-    // Get the current scale from the slider
-    const currentScale = parseInt(scaleSlider.value) || 1;
-    const visualActualSize = specificBaseSize * currentScale;
-
-    // RELATIVE_VIEW_DISTANCE_MULTIPLIER is now global
-    const offsetDistance = visualActualSize * RELATIVE_VIEW_DISTANCE_MULTIPLIER;
-    
-    const baseViewDir = new THREE.Vector3(0, 0.75, 1); // Viewing angle relative to object
-    baseViewDir.normalize();
-
-    const solarSystemWorldQuaternion = solarSystemGroup.getWorldQuaternion(new THREE.Quaternion());
-    const worldOrientedViewDir = baseViewDir.clone().applyQuaternion(solarSystemWorldQuaternion);
-
-    const finalOffsetVector = worldOrientedViewDir.clone().multiplyScalar(offsetDistance);
-    cameraAnimationEndPos.copy(targetBodyWorldPosition).add(finalOffsetVector);
-
-    // Set up animation parameters
-    cameraAnimationStartPos.copy(camera.position); // Current camera position is the start
-    
-    const tempLookAt = new THREE.Vector3();
-    camera.getWorldDirection(tempLookAt).multiplyScalar(10).add(camera.position); 
-    cameraAnimationStartLookAt.copy(tempLookAt); 
-
-    cameraAnimationEndLookAt.copy(targetBodyWorldPosition);
-
-    targetObjectForAnimation = {
-        mesh: targetObjectMesh,
-        baseSize: specificBaseSize,
-        worldOrientedNormalizedViewDir: worldOrientedViewDir // Store normalized, world-oriented direction
-    };
-    isCameraAnimating = true;
-    animationStartTime = Date.now();
-
-  } else {
-    // No target found, ensure animation state is reset (already done at the top)
-  }
-}
-
 // New rotation state variables for two-hand gestures
 let gestureInitialQuaternion = null;
 let gestureInitialTwoHandAngle = null;
 let gestureInitialTwoHandMidY = null;
 let gestureInitialTwoHandMidX = null;
+
+// --- UI Update for Bodies List ---
+
+// New cameraControls object to manage camera animation state from other modules
+const cameraControls = {
+  startFlyToAnimation: ({ lookAtTargetPoint, meshToFollowAfterAnimation, baseSizeForOffset, worldOrientedNormalizedViewDir }) => {
+    const camera = getCamera();
+    if (!camera) return;
+
+    cameraAnimationEndLookAt.copy(lookAtTargetPoint);
+
+    const currentScale = parseInt(scaleSlider.value) || 1;
+    const visualActualSize = baseSizeForOffset * currentScale;
+    const offsetDistance = visualActualSize * RELATIVE_VIEW_DISTANCE_MULTIPLIER;
+
+    const finalOffsetVector = worldOrientedNormalizedViewDir.clone().multiplyScalar(offsetDistance);
+    cameraAnimationEndPos.copy(lookAtTargetPoint).add(finalOffsetVector);
+
+    cameraAnimationStartPos.copy(camera.position);
+
+    const tempLookAtVec = new THREE.Vector3(); // Renamed to avoid conflict
+    camera.getWorldDirection(tempLookAtVec).multiplyScalar(10).add(camera.position);
+    cameraAnimationStartLookAt.copy(tempLookAtVec);
+
+    targetObjectForAnimation = {
+        mesh: meshToFollowAfterAnimation,
+        baseSize: baseSizeForOffset,
+        worldOrientedNormalizedViewDir: worldOrientedNormalizedViewDir
+    };
+    isCameraAnimating = true;
+    animationStartTime = Date.now();
+  },
+  cancelAnimationsAndFollow: () => {
+    followedObject = null;
+    isCameraAnimating = false;
+    targetObjectForAnimation = null;
+  }
+};
 
 // --- Simulation time tracking ---
 let simulationTime = Date.now(); // ms since epoch, starts at real time
@@ -239,9 +122,8 @@ function handleHandResults(results) {
     const leftPinch = isPinch(l);
     const rightPinch = isPinch(r);
     if (leftPinch && rightPinch) {
-      isCameraAnimating = false; // Gesture started, cancel fly-to animation
-      followedObject = null;      // Also stop any following
-      const camera = getCamera(); 
+      cameraControls.cancelAnimationsAndFollow(); // Cancel fly-to or follow if two-hand gesture starts
+      const camera = getCamera();
       const dx = r[8].x - l[8].x;
       const dy = r[8].y - l[8].y;
       const angle = Math.atan2(dy, dx);
@@ -257,11 +139,11 @@ function handleHandResults(results) {
         gestureInitialTwoHandMidX = midX;
 
         // Initialize states for zoom/dolly
-        lastTwoHandDistance = distance; 
-        livePreviousPinchDistance = distance; 
+        lastTwoHandDistance = distance;
+        livePreviousPinchDistance = distance;
       } else {
         // Continuous gesture:
-        const camera = getCamera(); // Get camera instance
+        // const camera = getCamera(); // Already got camera
 
         // 1. Calculate total deltas from gesture start
         const totalDeltaAngleY = angle - gestureInitialTwoHandAngle;
@@ -272,31 +154,17 @@ function handleHandResults(results) {
         let newQuaternion = gestureInitialQuaternion.clone();
 
         // 3. Apply Y-axis rotation (world Y - for twisting hands)
-        // Original effect: solarSystemGroup.rotation.y = lastSolarSystemRotationY + deltaAngle;
-        // The 'deltaAngle' was (angle - lastTwoHandAngle).
-        // Positive totalDeltaAngleY (hands rotate counter-clockwise from above) should rotate scene CCW.
-        // However, the original was `+ deltaAngle` where `deltaAngle` was current - previous.
-        // Let's keep it direct: positive totalDeltaAngleY rotates positively around world Y.
         const rotY = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), totalDeltaAngleY);
-        // Apply world Y rotation first to the initial state.
-        // To match typical screen-based rotation where rotating hands right (CW) spins object right (CW from top view):
-        // If totalDeltaAngleY is positive for CCW hand rotation, use -totalDeltaAngleY for CW scene rotation.
-        // However, the original was `+ deltaAngle` where `deltaAngle` was current - previous.
-        // Let's keep it direct: positive totalDeltaAngleY rotates positively around world Y.
         newQuaternion.premultiply(rotY);
 
 
         // 4. Apply X-axis rotation (camera's right vector - for lifting plate)
-        // Original effect: solarSystemGroup.rotation.x = lastSolarSystemRotationX - deltaMidY * 4.0;
-        // Negative totalDeltaMidY (hands move up) should lift the plate up (rotate scene "backwards" over X).
         const cameraRight = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0); // Camera's local X axis in world space
-        const rotationAmountX = -totalDeltaMidY * 4.0; // Negative deltaMidY for upward motion = positive rotation around cameraRight
+        const rotationAmountX = -totalDeltaMidY * 4.0;
         const rotX = new THREE.Quaternion().setFromAxisAngle(cameraRight, rotationAmountX);
         newQuaternion.premultiply(rotX); // Apply camera-relative X rotation after world Y
 
         // 5. Apply Z-axis rotation (solar system's local Z - for side-to-side hand movement translating to roll)
-        // Original effect: solarSystemGroup.rotation.z = lastSolarSystemRotationZ - deltaMidX * 4.0;
-        // Negative totalDeltaMidX (hands move left) should roll scene "left" (positive rotation around local Z).
         const rotationAmountZ = -totalDeltaMidX * 4.0;
         const rotZ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), rotationAmountZ); // Axis (0,0,1) is local to the current quaternion state
         newQuaternion.multiply(rotZ); // Multiply to apply in local space (after Y and X)
@@ -309,9 +177,7 @@ function handleHandResults(results) {
           
           const DOLLY_SENSITIVITY = 25; // Base sensitivity
           
-          // Calculate current distance from camera to the group for scaling dolly sensitivity
           const currentCameraDistanceToGroup = camera.position.distanceTo(solarSystemGroup.position);
-          // Scale factor: sensitivity is base at 20 units distance. Min factor of 0.1.
           const adaptiveDollySensitivityFactor = Math.max(0.1, currentCameraDistanceToGroup / 20.0);
           const adaptiveDollySensitivity = DOLLY_SENSITIVITY * adaptiveDollySensitivityFactor;
           
@@ -319,7 +185,6 @@ function handleHandResults(results) {
 
           const viewDirection = camera.getWorldDirection(new THREE.Vector3());
           camera.position.addScaledVector(viewDirection, dollyAmount);
-          // NO camera.lookAt(solarSystemGroup.position) here to prevent snapping
         }
         livePreviousPinchDistance = distance; // Update for next frame's delta
       }
@@ -328,7 +193,7 @@ function handleHandResults(results) {
   }
 
   // Reset two-hand gesture state if not actively pinching with two hands
-  if (!results.multiHandLandmarks || results.multiHandLandmarks.length < 2 || 
+  if (!results.multiHandLandmarks || results.multiHandLandmarks.length < 2 ||
       !(isPinch(results.multiHandLandmarks[0]) && isPinch(results.multiHandLandmarks[1]))) {
     gestureInitialQuaternion = null; // Reset new rotation state
     gestureInitialTwoHandAngle = null;
@@ -344,47 +209,37 @@ function handleHandResults(results) {
     let pinchDetected = false;
     for (const landmarks of results.multiHandLandmarks) {
       if (isPinch(landmarks)) {
-        isCameraAnimating = false; // Gesture started, cancel fly-to animation
-        followedObject = null;      // Also stop any following
+        cameraControls.cancelAnimationsAndFollow(); // Cancel fly-to or follow if one-hand gesture starts
         pinchDetected = true;
         const indexTip = landmarks[8]; // Normalized screen coordinates (0-1)
         const PAN_SENSITIVITY = 10; // Adjust as needed
 
         if (lastPanPosition === null) {
-          // First frame of the pinch, just record the position
           lastPanPosition = { x: indexTip.x, y: indexTip.y };
         } else {
-          // Calculate delta from the last position
           const deltaX = indexTip.x - lastPanPosition.x;
           const deltaY = indexTip.y - lastPanPosition.y;
 
-          // Apply delta to the solar system group's position relative to the camera's orientation
           const camera = getCamera();
-          const camRight = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0); // Camera's local X (right) axis in world space
-          const camUp = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 1);    // Camera's local Y (up) axis in world space
+          const camRight = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0);
+          const camUp = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 1);
 
-          // Calculate current distance from camera to the group for scaling pan sensitivity
           const currentCameraDistanceToGroup = camera.position.distanceTo(solarSystemGroup.position);
-          // Scale factor: sensitivity is normal at 10 units distance. Min factor of 0.1.
           const panScaleFactor = Math.max(0.1, currentCameraDistanceToGroup / 10.0);
 
-          // Pan horizontally on screen: move group along camera's right vector, scaled by distance
           solarSystemGroup.position.addScaledVector(camRight, deltaX * PAN_SENSITIVITY * panScaleFactor);
-          
-          // Pan vertically on screen: move group along camera's up vector, scaled by distance
           solarSystemGroup.position.addScaledVector(camUp, -deltaY * PAN_SENSITIVITY * panScaleFactor);
 
-          // Update last pan position for the next frame
           lastPanPosition = { x: indexTip.x, y: indexTip.y };
         }
-        break; // Process only one hand for panning
+        break;
       }
     }
     if (!pinchDetected) {
-      lastPanPosition = null; // Reset if no pinch is detected this frame
+      lastPanPosition = null;
     }
   } else {
-    lastPanPosition = null; // Reset if no hands are detected
+    lastPanPosition = null;
   }
 }
 
@@ -413,31 +268,26 @@ function setPlanetScales(scale) {
     if (!planetName) return;
 
     if (planetName === 'earth') {
-      // Earth system uses moonOrbitData to get specific meshes
       if (moonOrbitData.has(shape)) {
         const { moon: moonMesh, earthSpinnner } = moonOrbitData.get(shape);
         
-        // Scale Earth mesh (child of earthSpinnner group)
         if (earthSpinnner && earthSpinnner.children[0]) {
           earthSpinnner.children[0].scale.set(scale, scale, scale);
         }
         
-        // Scale Moon mesh (directly available from moonOrbitData)
         if (moonMesh) {
           moonMesh.scale.set(scale, scale, scale);
         }
       }
     } else {
-      // For other planets, the mesh is assumed to be the first child of the shape group
       if (shape.children[0]) {
         shape.children[0].scale.set(scale, scale, scale);
       }
     }
   });
 
-  // Scale the sun mesh (this remains the same)
   const sunMesh = getSunMesh();
-  if (sunMesh) { // sunBaseSize is not used for applying scale here, just existence check
+  if (sunMesh) {
     sunMesh.scale.set(scale, scale, scale);
   }
 }
@@ -457,7 +307,7 @@ const animate = () => {
   const now = Date.now();
   const deltaMs = now - lastAnimationTime;
   lastAnimationTime = now;
-  simulationTime += deltaMs * speedMultiplier; // 1x = real time, -1x = reverse real time
+  simulationTime += deltaMs * speedMultiplier;
   updateSimDateDisplay();
 
   const simDaysElapsedInFrame = (deltaMs * speedMultiplier / (24 * 60 * 60 * 1000));
@@ -466,46 +316,37 @@ const animate = () => {
     const userData = shape.userData || {};
     const planetName = userData.name;
 
-    if (shape === selectedShape) {
-      // Skip rotation for selected shape (existing logic persists)
-    } else if (moonOrbitData.has(shape)) { // This is the earthSystemGroup
+    if (moonOrbitData.has(shape)) { // This is the earthSystemGroup
       const { pivot: moonOrbitalPivot, earthSpinnner } = moonOrbitData.get(shape);
 
-      // Earth's axial spin (on its dedicated spinner group)
       if (earthSpinnner && planetSpeeds['earth']) {
         earthSpinnner.rotation.y += planetSpeeds['earth'].rotation * simDaysElapsedInFrame;
       }
 
-      // Moon's orbit (on its dedicated pivot)
       if (moonOrbitalPivot) {
         moonOrbitalPivot.rotation.y += (2 * Math.PI / 27.32) * simDaysElapsedInFrame;
       }
-      // The main 'shape' (earthSystemGroup) itself does not get direct axial rotation here.
 
     } else if (planetName && planetSpeeds[planetName] && planetSpeeds[planetName].rotation !== undefined) {
-      // For other planets (not Earth system, not Sun mesh), apply their axial rotation to the main shape group
       shape.rotation.y += (planetSpeeds[planetName].rotation || 0) * simDaysElapsedInFrame;
     }
 
-    // Animate planet orbit around the sun (applies to earthSystemGroup as well)
     if (planetOrbitData.has(shape)) {
       const sunOrbitPivot = planetOrbitData.get(shape);
-      // planetName on 'shape.userData.name' (e.g., 'earth') is used to get the correct orbital speed.
       if (planetName && planetSpeeds[planetName] && planetSpeeds[planetName].orbit !== undefined) {
         sunOrbitPivot.rotation.y += (planetSpeeds[planetName].orbit || 0) * simDaysElapsedInFrame;
       }
     }
   });
 
-  // Animate sun rotation (handled separately as it's not in 'shapes')
   const sunMesh = getSunMesh();
   if (sunMesh) {
     sunMesh.rotation.y += (planetSpeeds['sun']?.rotation || 0) * simDaysElapsedInFrame;
   }
 
   const camera = getCamera();
-  const tempWorldPos = new THREE.Vector3(); // For reuse
-  const tempLookAt = new THREE.Vector3(); // For reuse
+  const tempWorldPos = new THREE.Vector3();
+  const tempLookAt = new THREE.Vector3(); // Already defined inside cameraControls.startFlyToAnimation if needed there
 
   if (isCameraAnimating) {
     const elapsed = Date.now() - animationStartTime;
@@ -514,25 +355,23 @@ const animate = () => {
     progress = progress < 0.5 ? 2 * progress * progress : 1 - Math.pow(-2 * progress + 2, 2) / 2;
 
     camera.position.lerpVectors(cameraAnimationStartPos, cameraAnimationEndPos, progress);
+    // tempLookAt is declared above, reuse it
     tempLookAt.lerpVectors(cameraAnimationStartLookAt, cameraAnimationEndLookAt, progress);
     camera.lookAt(tempLookAt);
 
     if (progress === 1.0) {
       isCameraAnimating = false;
       if (targetObjectForAnimation) {
-        followedObject = targetObjectForAnimation; // Now an object { mesh, baseSize, worldOrientedNormalizedViewDir }
+        followedObject = targetObjectForAnimation;
         targetObjectForAnimation = null;
-        // No longer need to calculate worldOffsetToFollowTarget here
-      } 
+      }
     }
   } else if (followedObject && followedObject.mesh && followedObject.worldOrientedNormalizedViewDir) {
-    // Camera following logic with real-time scale adjustment
-    followedObject.mesh.getWorldPosition(tempWorldPos); // tempWorldPos is the target's center
+    followedObject.mesh.getWorldPosition(tempWorldPos);
 
     const currentScale = parseInt(scaleSlider.value) || 1;
     const visualActualSize = followedObject.baseSize * currentScale;
     
-    // RELATIVE_VIEW_DISTANCE_MULTIPLIER is global
     const newOffsetDistance = visualActualSize * RELATIVE_VIEW_DISTANCE_MULTIPLIER;
 
     const currentOffsetVector = followedObject.worldOrientedNormalizedViewDir.clone().multiplyScalar(newOffsetDistance);
@@ -555,10 +394,22 @@ initThree({
   moonOrbitData,
   planetOrbitData,
   shapes,
-  animateCallback: animate // pass the animation loop
+  animateCallback: animate
 });
 
-updateBodiesList(); // Initial call after planets are created
+// Initialize the body list UI after Three.js setup and planet creation
+initBodyList({
+  bodiesListUlElement: document.getElementById('bodies-list'),
+  planetData,
+  getCamera,
+  getSunMesh,
+  shapes,
+  planetBaseSizes,
+  sunBaseSize,
+  moonOrbitData,
+  cameraControls,
+  solarSystemGroup
+});
 
 animate();
 
@@ -566,5 +417,4 @@ initCamera({
   video,
   canvas,
   hands,
-  // onFrame is not needed because hands is provided and will be called automatically
 });
