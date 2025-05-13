@@ -113,7 +113,6 @@ function handleBodyClick(bodyNameKey) {
   const camera = getCamera();
   let targetObjectMesh = null;
   const targetBodyWorldPosition = new THREE.Vector3(); // World position of the body itself
-  let baseOffsetFactor = 15;
   let specificBaseSize = 1;
 
   // Cancel any ongoing follow or animation before starting a new one
@@ -126,7 +125,6 @@ function handleBodyClick(bodyNameKey) {
     if (targetObjectMesh && typeof sunBaseSize === 'number') {
         specificBaseSize = sunBaseSize;
     }
-    baseOffsetFactor = 5;
   } else if (bodyNameKey === 'moon') {
     const earthShapeGroup = shapes.find(s => s.userData && s.userData.name === 'earth');
     if (earthShapeGroup && moonOrbitData.has(earthShapeGroup)) {
@@ -136,9 +134,12 @@ function handleBodyClick(bodyNameKey) {
         if (planetBaseSizes['earth']) {
           specificBaseSize = (planetBaseSizes['earth'] || 1) * 0.273;
         } else {
-          specificBaseSize = 0.5 * 0.8 * 0.273;
+          // Fallback if earth's base size isn't found (e.g. before full init)
+          // Use a generic moon size relative to a default planet size
+          const defaultPlanetSize = 0.5; // A typical base size for planets if not specified
+          const moonToPlanetRatio = 0.273; // Moon is ~27.3% size of Earth
+          specificBaseSize = defaultPlanetSize * moonToPlanetRatio;
         }
-        baseOffsetFactor = 20;
       }
     }
   } else { // It's a planet
@@ -149,7 +150,11 @@ function handleBodyClick(bodyNameKey) {
         specificBaseSize = planetBaseSizes[bodyNameKey];
       } else {
         const planetEntry = planetData.find(p => p.name === bodyNameKey);
-        if (planetEntry) specificBaseSize = planetEntry.size;
+        if (planetEntry) {
+            specificBaseSize = planetEntry.size;
+        } else {
+            specificBaseSize = 0.5; // Default if not found
+        }
       }
     }
   }
@@ -157,8 +162,16 @@ function handleBodyClick(bodyNameKey) {
   if (targetObjectMesh) {
     targetObjectMesh.getWorldPosition(targetBodyWorldPosition);
 
-    // Calculate desired final camera position (end of animation)
-    const offsetDistance = specificBaseSize * baseOffsetFactor;
+    // Get the current scale from the slider
+    const currentScale = parseInt(scaleSlider.value) || 1;
+    const visualActualSize = specificBaseSize * currentScale;
+
+    // Define a multiplier for how far the camera should be, relative to the visual size.
+    // e.g., 4.0 means the camera is positioned at a distance roughly 4x the object's visual radius/diameter.
+    const RELATIVE_VIEW_DISTANCE_MULTIPLIER = 4.0; 
+
+    const offsetDistance = visualActualSize * RELATIVE_VIEW_DISTANCE_MULTIPLIER;
+    
     const cameraOffsetDirection = new THREE.Vector3(0, 0.75, 1);
     cameraOffsetDirection.normalize();
     cameraOffsetDirection.multiplyScalar(offsetDistance);
