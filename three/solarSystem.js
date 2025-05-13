@@ -27,16 +27,16 @@ planetData.forEach(planet => {
 
 // Orbital and rotation periods in Earth days
 export const planetPhysicalData = {
-  mercury:  { orbit: 87.97,   rotation: 58.646 },
-  venus:    { orbit: 224.70,  rotation: -243.025 }, // retrograde
-  earth:    { orbit: 365.26,  rotation: 0.997 },
-  mars:     { orbit: 686.98,  rotation: 1.026 },
-  jupiter:  { orbit: 4332.59, rotation: 0.4135 },
-  saturn:   { orbit: 10759.22,rotation: 0.444 },
-  uranus:   { orbit: 30688.5, rotation: -0.718 }, // retrograde
-  neptune:  { orbit: 60182,   rotation: 0.671 },
-  pluto:    { orbit: 90560,   rotation: -6.387 }, // retrograde
-  sun:      { orbit: 0,       rotation: 25.0 } // sun's rotation ~25 days, no orbit
+  mercury:  { orbit: 87.97,   rotation: 58.646, eccentricity: 0.206 },
+  venus:    { orbit: 224.70,  rotation: -243.025, eccentricity: 0.007 }, // retrograde
+  earth:    { orbit: 365.26,  rotation: 0.997, eccentricity: 0.017 },
+  mars:     { orbit: 686.98,  rotation: 1.026, eccentricity: 0.094 },
+  jupiter:  { orbit: 4332.59, rotation: 0.4135, eccentricity: 0.049 },
+  saturn:   { orbit: 10759.22,rotation: 0.444, eccentricity: 0.052 },
+  uranus:   { orbit: 30688.5, rotation: -0.718, eccentricity: 0.047 }, // retrograde
+  neptune:  { orbit: 60182,   rotation: 0.671, eccentricity: 0.010 },
+  pluto:    { orbit: 90560,   rotation: -6.387, eccentricity: 0.244 }, // retrograde
+  sun:      { orbit: 0,       rotation: 25.0, eccentricity: 0 } // sun's rotation ~25 days, no orbit, placeholder eccentricity
 };
 
 // Precompute normalized angular speeds (radians per animation frame, relative to Earth)
@@ -50,15 +50,43 @@ Object.keys(planetPhysicalData).forEach(name => {
 });
 
 export const moonOrbitData = new Map(); // Map from earth group to {pivot, moon}
-export const planetOrbitData = new Map(); // Map from planet group to its pivot
+export const planetOrbitData = new Map(); // Map from planet group to its orbital params {a, e, n, M}
 
-export function createOrbitLine(radius, segments = 128, color = 0xffffff, opacity = 0.25) {
+export function createOrbitLine(semiMajorAxis, eccentricity, segments = 128, color = 0xffffff, opacity = 0.25) {
   const geometry = new THREE.BufferGeometry();
   const positions = [];
-  for (let i = 0; i <= segments; i++) {
-    const theta = (i / segments) * Math.PI * 2;
-    positions.push(Math.cos(theta) * radius, 0, Math.sin(theta) * radius);
+
+  if (eccentricity < 0 || eccentricity >= 1) {
+    // For simplicity, fallback to a circle if eccentricity is invalid or for parabolic/hyperbolic (which are open)
+    // Or handle error appropriately
+    console.warn(`Invalid eccentricity ${eccentricity} for orbit line, drawing circle.`);
+    for (let i = 0; i <= segments; i++) {
+      const theta = (i / segments) * Math.PI * 2;
+      positions.push(Math.cos(theta) * semiMajorAxis, 0, Math.sin(theta) * semiMajorAxis);
+    }
+  } else {
+    const a = semiMajorAxis;
+    const e = eccentricity;
+    const b = a * Math.sqrt(1 - e * e); // Semi-minor axis
+    const c = a * e; // Distance from center to focus
+
+    // We want the Sun (at 0,0,0) to be at one focus.
+    // The center of the ellipse will be at (-c, 0, 0) if perihelion is on +X axis.
+    // Points on ellipse relative to its center (cx, cz) = (-c,0):
+    // x_rel_center = a * cos(theta_param)
+    // z_rel_center = b * sin(theta_param)
+    // So, points relative to focus (Sun at 0,0,0):
+    // x_abs = (a * cos(theta_param)) - c
+    // z_abs = b * sin(theta_param)
+
+    for (let i = 0; i <= segments; i++) {
+      const thetaParam = (i / segments) * Math.PI * 2; // Parameter angle for ellipse
+      const x = a * Math.cos(thetaParam) - c;
+      const z = b * Math.sin(thetaParam);
+      positions.push(x, 0, z); 
+    }
   }
+
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   const material = new THREE.LineBasicMaterial({ color, transparent: true, opacity });
   return new THREE.Line(geometry, material);
@@ -102,7 +130,7 @@ export function createPlanet({ texture, size, name }, position, shapes) {
       earthSpinnner: earthAxialSpinGroup // For Earth's axial spin
     });
 
-    const moonOrbitLine = createOrbitLine(12.0, 128, 0xffffff, 0.3);
+    const moonOrbitLine = createOrbitLine(12.0, 0, 128, 0xffffff, 0.3);
     earthSystemGroup.add(moonOrbitLine); // Add orbit line to the main system group
 
     earthSystemGroup.position.copy(position); // Position the whole system
