@@ -14,6 +14,8 @@ import { initCamera } from './utils/camera.js';
 import { initSpeedControls } from './ui/controls.js';
 import { get3DCoords } from './utils/helpers.js';
 import { initBodyList } from './ui/bodyList.js';
+import { initSimDateDisplay, updateSimDateDisplay as updateSimDateDisplayModule } from './ui/simulationDate.js';
+import { initScaleControls } from './ui/scaleControls.js';
 
 let video = document.getElementById('webcam');
 let canvas = document.getElementById('canvas');
@@ -92,15 +94,6 @@ const cameraControls = {
 
 // --- Simulation time tracking ---
 let simulationTime = Date.now(); // ms since epoch, starts at real time
-const simDateDiv = document.getElementById('sim-date');
-function updateSimDateDisplay() {
-  const date = new Date(simulationTime);
-  // Format as YYYY-MM-DD HH:mm:ss in local time
-  const pad = n => n.toString().padStart(2, '0');
-  const str = `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
-  simDateDiv.textContent = str;
-}
-updateSimDateDisplay();
 
 function handleHandResults(results) {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -257,10 +250,6 @@ planetData.forEach(planet => {
   if (planet.name === 'sun') sunBaseSize = planet.size;
 });
 
-function updateScaleDisplay(val) {
-  scaleValue.textContent = val + 'x';
-}
-
 function setPlanetScales(scale) {
   shapes.forEach(shape => {
     const planetName = shape.userData ? shape.userData.name : null;
@@ -292,23 +281,13 @@ function setPlanetScales(scale) {
   }
 }
 
-// Scale slider logic
-scaleSlider.addEventListener('input', () => {
-  const val = parseInt(scaleSlider.value);
-  updateScaleDisplay(val);
-  setPlanetScales(val);
-});
-// Set initial scale
-updateScaleDisplay(1);
-setPlanetScales(1);
-
 const animate = () => {
   requestAnimationFrame(animate);
   const now = Date.now();
   const deltaMs = now - lastAnimationTime;
   lastAnimationTime = now;
   simulationTime += deltaMs * speedMultiplier;
-  updateSimDateDisplay();
+  updateSimDateDisplayModule(simulationTime);
 
   const simDaysElapsedInFrame = (deltaMs * speedMultiplier / (24 * 60 * 60 * 1000));
 
@@ -409,6 +388,17 @@ initBodyList({
   moonOrbitData,
   cameraControls,
   solarSystemGroup
+});
+
+// Initialize the simulation date display
+initSimDateDisplay(document.getElementById('sim-date'));
+
+// Initialize scale controls
+initScaleControls({
+  scaleSliderElement: scaleSlider,
+  scaleValueElement: scaleValue,
+  initialScale: 1,
+  onScaleChange: setPlanetScales
 });
 
 animate();
