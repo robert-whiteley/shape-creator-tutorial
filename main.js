@@ -25,19 +25,13 @@ let originalDistance = null;
 let selectedShape = null;
 let shapeCreatedThisPinch = false;
 let lastShapeCreationTime = 0;
-const shapeCreationCooldown = 1000;
+let shapeCreationCooldown = 1000;
 let solarSystemGroup = new THREE.Group();
-let lastTwoHandAngle = null;
-let lastSolarSystemRotationY = 0;
 let lastTwoHandDistance = null;
 let lastSolarSystemScale = 1;
-let lastTwoHandMidY = null;
-let lastSolarSystemRotationX = 0;
-let lastTwoHandMidX = null;
-let lastSolarSystemRotationZ = 0;
+let livePreviousPinchDistance = null;
 let speedMultiplier = 1;
 let lastPanPosition = null;
-let livePreviousPinchDistance = null;
 let lastCameraOffsetDirection = null;
 let initialCameraDistanceToGroup = null;
 let lastAnimationTime = Date.now();
@@ -47,6 +41,12 @@ let scaleSlider = document.getElementById('scale-slider');
 let scaleValue = document.getElementById('scale-value');
 let planetBaseSizes = {};
 let sunBaseSize = null;
+
+// New rotation state variables for two-hand gestures
+let gestureInitialQuaternion = null;
+let gestureInitialTwoHandAngle = null;
+let gestureInitialTwoHandMidY = null;
+let gestureInitialTwoHandMidX = null;
 
 // --- Simulation time tracking ---
 let simulationTime = Date.now(); // ms since epoch, starts at real time
@@ -88,41 +88,61 @@ function handleHandResults(results) {
       const midY = (l[8].y + r[8].y) / 2;
       const midX = (l[8].x + r[8].x) / 2;
 
-      if (lastTwoHandAngle === null || lastTwoHandDistance === null /* implies others are null too */) {
+      if (gestureInitialTwoHandAngle === null) { // Detect start of a new two-hand gesture
         // Start of a new two-hand gesture
-        lastTwoHandAngle = angle;
-        lastSolarSystemRotationY = solarSystemGroup.rotation.y;
-        lastTwoHandDistance = distance; // Store initial pinch distance for gesture detection
-        livePreviousPinchDistance = distance; // Initialize for dolly zoom delta
+        gestureInitialQuaternion = solarSystemGroup.quaternion.clone();
+        gestureInitialTwoHandAngle = angle;
+        gestureInitialTwoHandMidY = midY;
+        gestureInitialTwoHandMidX = midX;
 
-        // initialCameraDistanceToGroup and lastCameraOffsetDirection no longer primarily used for zoom logic here
-        // but can be kept if other features might use them, or cleaned up if definitively not.
-        // For now, let's leave them but comment out their direct zoom usage setup.
-        // initialCameraDistanceToGroup = camera.position.distanceTo(solarSystemGroup.position);
-        // if (initialCameraDistanceToGroup < 0.1) {
-        //     initialCameraDistanceToGroup = 0.1;
-        //     lastCameraOffsetDirection = camera.getWorldDirection(new THREE.Vector3()).negate();
-        // } else {
-        //     lastCameraOffsetDirection = new THREE.Vector3().subVectors(camera.position, solarSystemGroup.position).normalize();
-        // }
-
-        lastTwoHandMidY = midY;
-        lastSolarSystemRotationX = solarSystemGroup.rotation.x;
-        lastTwoHandMidX = midX;
-        lastSolarSystemRotationZ = solarSystemGroup.rotation.z;
+        // Initialize states for zoom/dolly
+        lastTwoHandDistance = distance; 
+        livePreviousPinchDistance = distance; 
       } else {
-        // Continuous gesture: Rotation
-        const deltaAngle = angle - lastTwoHandAngle;
-        solarSystemGroup.rotation.y = lastSolarSystemRotationY + deltaAngle; // Inverted
-        const deltaMidY = midY - lastTwoHandMidY;
-        solarSystemGroup.rotation.x = lastSolarSystemRotationX - deltaMidY * 4.0; // Inverted
-        const deltaMidX = midX - lastTwoHandMidX;
-        solarSystemGroup.rotation.z = lastSolarSystemRotationZ - deltaMidX * 4.0; // Inverted
+        // Continuous gesture:
+        const camera = getCamera(); // Get camera instance
+
+        // 1. Calculate total deltas from gesture start
+        const totalDeltaAngleY = angle - gestureInitialTwoHandAngle;
+        const totalDeltaMidY = midY - gestureInitialTwoHandMidY;
+        const totalDeltaMidX = midX - gestureInitialTwoHandMidX;
+
+        // 2. Start with the initial orientation of the solar system group
+        let newQuaternion = gestureInitialQuaternion.clone();
+
+        // 3. Apply Y-axis rotation (world Y - for twisting hands)
+        // Original effect: solarSystemGroup.rotation.y = lastSolarSystemRotationY + deltaAngle;
+        // The 'deltaAngle' was (angle - lastTwoHandAngle).
+        // Positive totalDeltaAngleY (hands rotate counter-clockwise from above) should rotate scene CCW.
+        const rotY = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), totalDeltaAngleY);
+        // Apply world Y rotation first to the initial state.
+        // To match typical screen-based rotation where rotating hands right (CW) spins object right (CW from top view):
+        // If totalDeltaAngleY is positive for CCW hand rotation, use -totalDeltaAngleY for CW scene rotation.
+        // However, the original was `+ deltaAngle` where `deltaAngle` was current - previous.
+        // Let's keep it direct: positive totalDeltaAngleY rotates positively around world Y.
+        newQuaternion.premultiply(rotY);
+
+
+        // 4. Apply X-axis rotation (camera's right vector - for lifting plate)
+        // Original effect: solarSystemGroup.rotation.x = lastSolarSystemRotationX - deltaMidY * 4.0;
+        // Negative totalDeltaMidY (hands move up) should lift the plate up (rotate scene "backwards" over X).
+        const cameraRight = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0); // Camera's local X axis in world space
+        const rotationAmountX = -totalDeltaMidY * 4.0; // Negative deltaMidY for upward motion = positive rotation around cameraRight
+        const rotX = new THREE.Quaternion().setFromAxisAngle(cameraRight, rotationAmountX);
+        newQuaternion.premultiply(rotX); // Apply camera-relative X rotation after world Y
+
+        // 5. Apply Z-axis rotation (solar system's local Z - for side-to-side hand movement translating to roll)
+        // Original effect: solarSystemGroup.rotation.z = lastSolarSystemRotationZ - deltaMidX * 4.0;
+        // Negative totalDeltaMidX (hands move left) should roll scene "left" (positive rotation around local Z).
+        const rotationAmountZ = -totalDeltaMidX * 4.0;
+        const rotZ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), rotationAmountZ); // Axis (0,0,1) is local to the current quaternion state
+        newQuaternion.multiply(rotZ); // Multiply to apply in local space (after Y and X)
+        
+        solarSystemGroup.quaternion.copy(newQuaternion);
 
         // Continuous gesture: Camera Dolly (New Zoom Logic)
-        const currentPinchDistance = distance;
         if (livePreviousPinchDistance !== null) {
-          const pinchDiff = currentPinchDistance - livePreviousPinchDistance;
+          const pinchDiff = distance - livePreviousPinchDistance;
           
           const DOLLY_SENSITIVITY = 25; // Base sensitivity
           
@@ -138,33 +158,23 @@ function handleHandResults(results) {
           camera.position.addScaledVector(viewDirection, dollyAmount);
           // NO camera.lookAt(solarSystemGroup.position) here to prevent snapping
         }
-        livePreviousPinchDistance = currentPinchDistance; // Update for next frame's delta
-
-        // Old zoom logic (based on solarSystemGroup.position) removed:
-        // if (lastTwoHandDistance > 0.001 && distance > 0.001 && lastCameraOffsetDirection) { 
-        //   const zoomFactor = lastTwoHandDistance / distance; 
-        //   let newCameraDistance = initialCameraDistanceToGroup * zoomFactor;
-        //   const MIN_CAM_DISTANCE = Math.max(camera.near + 0.1, 0.5);
-        //   const MAX_CAM_DISTANCE = camera.far * 0.9;
-        //   newCameraDistance = Math.max(MIN_CAM_DISTANCE, Math.min(MAX_CAM_DISTANCE, newCameraDistance));
-        //   const newCameraPosition = solarSystemGroup.position.clone().addScaledVector(lastCameraOffsetDirection, newCameraDistance);
-        //   camera.position.copy(newCameraPosition);
-        //   camera.lookAt(solarSystemGroup.position);
-        // }
+        livePreviousPinchDistance = distance; // Update for next frame's delta
       }
       return; // Processed two-hand gesture
     }
   }
 
   // Reset two-hand gesture state if not actively pinching with two hands
-  lastTwoHandAngle = null;
-  lastTwoHandDistance = null;
-  lastTwoHandMidY = null;
-  lastTwoHandMidX = null;
-  livePreviousPinchDistance = null; // Reset for dolly zoom
-  // Also reset camera zoom specific states (if they were used by old zoom)
-  // lastCameraOffsetDirection = null; // Kept for now, but not used by new zoom
-  // initialCameraDistanceToGroup = null; // Kept for now, but not used by new zoom
+  if (!results.multiHandLandmarks || results.multiHandLandmarks.length < 2 || 
+      !(isPinch(results.multiHandLandmarks[0]) && isPinch(results.multiHandLandmarks[1]))) {
+    gestureInitialQuaternion = null; // Reset new rotation state
+    gestureInitialTwoHandAngle = null;
+    gestureInitialTwoHandMidY = null;
+    gestureInitialTwoHandMidX = null;
+
+    lastTwoHandDistance = null; // Reset zoom state
+    livePreviousPinchDistance = null; // Reset for dolly zoom
+  }
 
   // One-hand pinch for panning
   if (results.multiHandLandmarks.length > 0) {
