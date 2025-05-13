@@ -100,6 +100,15 @@ export function initThree({
     const inclinationDeg = planetPhysicalData[planet.name]?.inclination || 0;
     const inclinationRad = inclinationDeg * (Math.PI / 180);
 
+    // Get Longitude of Ascending Node (Ω) in degrees and convert to radians
+    const nodeDeg = planetPhysicalData[planet.name]?.node || 0;
+    const nodeRad = nodeDeg * (Math.PI / 180);
+
+    // Get Argument of Perihelion (ω) in degrees and convert to radians
+    let periDeg = planetPhysicalData[planet.name]?.peri || 0;
+    if (periDeg < 0) periDeg += 360; // Ensure positive angle
+    const periRad = periDeg * (Math.PI / 180);
+
     // The pivot group's direct rotation will be replaced by direct position updates.
     // However, the planetGroup is still added to solarSystemGroup.
     // We might not need a dedicated 'pivot' in the old sense for sun orbits.
@@ -116,12 +125,24 @@ export function initThree({
       a: scaledSemiMajorAxis,
       e: eccentricity,
       i: inclinationRad, // Store inclination in radians
+      node: nodeRad,     // Store Longitude of Ascending Node in radians
+      peri: periRad,     // Store Argument of Perihelion in radians
       // We also need mean motion 'n', which is planetSpeeds[planet.name].orbit
       n: planetSpeeds[planet.name]?.orbit || 0,
       // We'll need a way to track the current Mean Anomaly (M) for each planet.
       // Let's initialize it based on the initial rotation, which simulated a starting position.
       // M = n * t. If initial rotation was fraction * 2PI, then M_initial = fraction * 2PI
-      M: (planetPhysicalData[planet.name]?.orbit > 0) ? ((days / planetPhysicalData[planet.name].orbit) % 1) * 2 * Math.PI : 0
+      // M: (planetPhysicalData[planet.name]?.orbit > 0) ? ((days / planetPhysicalData[planet.name].orbit) % 1) * 2 * Math.PI : 0
+      // New M calculation based on M0 at J2000.0:
+      M: (() => {
+        const m0Deg = planetPhysicalData[planet.name]?.m0 || 0;
+        let m0Rad = m0Deg * (Math.PI / 180);
+        const currentN = planetSpeeds[planet.name]?.orbit || 0;
+        let initialM = m0Rad + (currentN * days);
+        initialM = initialM % (2 * Math.PI); // Normalize to [0, 2PI)
+        if (initialM < 0) initialM += (2 * Math.PI); // Ensure positive
+        return initialM;
+      })()
     });
 
     // Initial positioning of the planet group itself using a simplified approach for now.
@@ -150,7 +171,7 @@ export function initThree({
     // planetOrbitData.set(planetGroup, pivot); // OLD: storing pivot
 
     // Draw orbit line at correct radius (this will need to become an elliptical line)
-    const orbitLine = createOrbitLine(scaledSemiMajorAxis, eccentricity, inclinationRad, 128, 0xffffff, 0.2);
+    const orbitLine = createOrbitLine(scaledSemiMajorAxis, eccentricity, inclinationRad, nodeRad, periRad, 128, 0xffffff, 0.2);
     // The orbit line should also be offset so the Sun is at its focus.
     // For a simple circle, it's centered at the sun.
     solarSystemGroup.add(orbitLine);

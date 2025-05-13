@@ -69,7 +69,7 @@ export function updateCelestialAnimations({
     // Animate planet orbit around the sun using Keplerian elements
     if (planetOrbitData.has(shape)) {
       const orbitalParams = planetOrbitData.get(shape); // This is a reference to the object in the Map
-      let { a, e, n, M, i } = orbitalParams; // Added i for inclination
+      let { a, e, n, M, i, node, peri } = orbitalParams; // Added i, node, peri
 
       // 1. Update Mean Anomaly (M)
       M += n * simDaysElapsedInFrame;
@@ -90,24 +90,67 @@ export function updateCelestialAnimations({
       const r = a * (1 - e * Math.cos(E));
 
       // 5. Calculate Cartesian coordinates (x_orb, z_orb) in the planet's orbital plane
-      // (assuming perihelion is along the x-axis of this plane)
-      const x_orb = r * Math.cos(nu);
-      const z_orb = r * Math.sin(nu);
+      // (assuming perihelion is along the x-axis of this plane, before applying argument of perihelion)
+      const x_prime = r * Math.cos(nu);
+      const y_prime = r * Math.sin(nu); // This is effectively the 'z' in a 2D orbital plane calculation
+
+      // Transformation from orbital plane to ecliptic coordinates:
+      // P = perihelion argument, O = longitude of ascending node, i = inclination
+      // x = r * (cos(O)cos(P+v) - sin(O)sin(P+v)cos(i))
+      // y = r * (sin(O)cos(P+v) + cos(O)sin(P+v)cos(i))
+      // z = r * (sin(P+v)sin(i))
+      // Where v is the true anomaly (nu)
+      // Our x_prime, y_prime are r*cos(nu) and r*sin(nu) respectively IF perihelion was at nu=0 along the reference x-axis.
+      // We need to first rotate by argument of perihelion (peri) in the orbital plane.
+      const x_orb_plane = x_prime * Math.cos(peri) - y_prime * Math.sin(peri);
+      const z_orb_plane = x_prime * Math.sin(peri) + y_prime * Math.cos(peri);
+      // y_orb_plane is 0 as we are in the 2D orbital plane initially.
+
+      // Now apply inclination (i) and longitude of ascending node (node)
+      // Rotate by i around the line of nodes (which is the reference x-axis after rotating by node).
+      // Simpler: construct the final position vector by applying rotations sequentially.
+
+      // Position in orbital frame (y is up, perpendicular to orbit plane)
+      // X_orb points to perihelion, Z_orb is in direction of motion at perihelion (for prograde)
+      // However, our (x_prime, y_prime) are already r*cos(nu) and r*sin(nu).
+      // Let's use the standard transformation formulas for clarity.
+      // (x_h, y_h, z_h) are heliocentric ecliptic coordinates.
+      // v = nu (true anomaly)
+      // ω = peri (argument of perihelion)
+      // Ω = node (longitude of ascending node)
+      // i = i (inclination)
+
+      const cos_nu_plus_peri = Math.cos(nu + peri);
+      const sin_nu_plus_peri = Math.sin(nu + peri);
+      const cos_node = Math.cos(node);
+      const sin_node = Math.sin(node);
+      const cos_i = Math.cos(i);
+      const sin_i = Math.sin(i);
+
+      const x_ecl = r * (cos_node * cos_nu_plus_peri - sin_node * sin_nu_plus_peri * cos_i);
+      const y_ecl = r * (sin_node * cos_nu_plus_peri + cos_node * sin_nu_plus_peri * cos_i);
+      const z_ecl = r * (sin_nu_plus_peri * sin_i);
       
-      // Apply inclination: Rotate around the x-axis of the reference frame (ecliptic)
-      // This assumes the line of nodes is along the x-axis.
-      const x_ref = x_orb;
-      const y_ref = z_orb * Math.sin(i);
-      const z_ref = z_orb * Math.cos(i);
+      // 6. Update planet's world position
+      // The sun (focus) is at (0,0,0) in the solarSystemGroup.
+      // The calculated coordinates are already heliocentric.
+      shape.position.set(x_ecl, z_ecl, y_ecl); // Swapping y and z based on Three.js Y-up vs common Z-up in orbital mechanics
+      // IMPORTANT: Standard orbital mechanics often uses Z as 'up' relative to the ecliptic plane.
+      // Three.js uses Y as 'up'.
+      // x_ecl -> x
+      // y_ecl -> z (Projection onto the ecliptic plane's XY, if we imagine X-Y as ecliptic in Three.js)
+      // z_ecl -> y (The 'height' above/below the ecliptic plane in Three.js)
+      // So the mapping should be: shape.position.set(x_ecl, z_ecl, y_ecl); if Y is up in Three.js
+      // Let's re-verify the axes. Standard orbital elements: X towards vernal equinox, Y 90deg east in ecliptic, Z normal to ecliptic.
+      // Three.js default: Y is up.
+      // If our ecliptic plane is XZ in Three.js, then:
+      // x_ecl maps to Three.js X
+      // y_ecl maps to Three.js Z
+      // z_ecl maps to Three.js Y (height above/below ecliptic)
+      shape.position.set(x_ecl, z_ecl, y_ecl); 
 
-      // 6. Update planet's position
-      // 'shape' is the planetGroup itself (e.g., earthSystemGroup or individual planet's group)
-      shape.position.set(x_ref, y_ref, z_ref);
-
-      // 7. Store updated M back into the orbitalParams object in the map
-      orbitalParams.M = M; 
-      // No need for planetOrbitData.set(shape, orbitalParams) because orbitalParams is a reference
-      // to the object in the map, so its properties are directly updated.
+      // Store updated M back into the map
+      orbitalParams.M = M % (2 * Math.PI); // Keep M in [0, 2*PI)
     }
   });
 
