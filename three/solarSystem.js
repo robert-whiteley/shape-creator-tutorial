@@ -73,17 +73,17 @@ export function createPlanet({ texture, size, name }, position, shapes) {
   if (name === 'earth') {
     const moonPivot = new THREE.Group();
     group.add(moonPivot);
-    const moonGeometry = new THREE.SphereGeometry(0.18 * 0.8, 32, 32);
+    const moonGeometry = new THREE.SphereGeometry(0.136 * 0.8, 32, 32);
     const moonTexture = new THREE.TextureLoader().load('textures/moon.jpg');
     const moonMaterial = new THREE.MeshStandardMaterial({ map: moonTexture });
     const moonMesh = new THREE.Mesh(moonGeometry, moonMaterial);
     moonMesh.castShadow = true;
     moonMesh.receiveShadow = true;
-    moonMesh.position.set(0.8, 0, 0);
+    moonMesh.position.set(12.0, 0, 0);
     moonPivot.add(moonMesh);
     moonOrbitData.set(group, { pivot: moonPivot, moon: moonMesh });
     // Add moon orbit line
-    const moonOrbitLine = createOrbitLine(0.8, 128, 0xffffff, 0.3);
+    const moonOrbitLine = createOrbitLine(12.0, 128, 0xffffff, 0.3);
     group.add(moonOrbitLine);
   }
   shapes.push(group);
