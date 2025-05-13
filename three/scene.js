@@ -96,6 +96,9 @@ export function initThree({
 
     // Get eccentricity
     const eccentricity = planetPhysicalData[planet.name]?.eccentricity || 0;
+    // Get inclination in degrees and convert to radians
+    const inclinationDeg = planetPhysicalData[planet.name]?.inclination || 0;
+    const inclinationRad = inclinationDeg * (Math.PI / 180);
 
     // The pivot group's direct rotation will be replaced by direct position updates.
     // However, the planetGroup is still added to solarSystemGroup.
@@ -112,6 +115,7 @@ export function initThree({
     planetOrbitData.set(planetGroup, {
       a: scaledSemiMajorAxis,
       e: eccentricity,
+      i: inclinationRad, // Store inclination in radians
       // We also need mean motion 'n', which is planetSpeeds[planet.name].orbit
       n: planetSpeeds[planet.name]?.orbit || 0,
       // We'll need a way to track the current Mean Anomaly (M) for each planet.
@@ -146,7 +150,7 @@ export function initThree({
     // planetOrbitData.set(planetGroup, pivot); // OLD: storing pivot
 
     // Draw orbit line at correct radius (this will need to become an elliptical line)
-    const orbitLine = createOrbitLine(scaledSemiMajorAxis, eccentricity, 128, 0xffffff, 0.2);
+    const orbitLine = createOrbitLine(scaledSemiMajorAxis, eccentricity, inclinationRad, 128, 0xffffff, 0.2);
     // The orbit line should also be offset so the Sun is at its focus.
     // For a simple circle, it's centered at the sun.
     solarSystemGroup.add(orbitLine);

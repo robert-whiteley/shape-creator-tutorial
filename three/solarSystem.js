@@ -27,16 +27,16 @@ planetData.forEach(planet => {
 
 // Orbital and rotation periods in Earth days
 export const planetPhysicalData = {
-  mercury:  { orbit: 87.97,   rotation: 58.646, eccentricity: 0.206 },
-  venus:    { orbit: 224.70,  rotation: -243.025, eccentricity: 0.007 }, // retrograde
-  earth:    { orbit: 365.26,  rotation: 0.997, eccentricity: 0.017 },
-  mars:     { orbit: 686.98,  rotation: 1.026, eccentricity: 0.094 },
-  jupiter:  { orbit: 4332.59, rotation: 0.4135, eccentricity: 0.049 },
-  saturn:   { orbit: 10759.22,rotation: 0.444, eccentricity: 0.052 },
-  uranus:   { orbit: 30688.5, rotation: -0.718, eccentricity: 0.047 }, // retrograde
-  neptune:  { orbit: 60182,   rotation: 0.671, eccentricity: 0.010 },
-  pluto:    { orbit: 90560,   rotation: -6.387, eccentricity: 0.244 }, // retrograde
-  sun:      { orbit: 0,       rotation: 25.0, eccentricity: 0 } // sun's rotation ~25 days, no orbit, placeholder eccentricity
+  mercury:  { orbit: 87.97,   rotation: 58.646, eccentricity: 0.206, inclination: 7.0 },
+  venus:    { orbit: 224.70,  rotation: -243.025, eccentricity: 0.007, inclination: 3.4 }, // retrograde
+  earth:    { orbit: 365.26,  rotation: 0.997, eccentricity: 0.017, inclination: 0.0 },
+  mars:     { orbit: 686.98,  rotation: 1.026, eccentricity: 0.094, inclination: 1.8 },
+  jupiter:  { orbit: 4332.59, rotation: 0.4135, eccentricity: 0.049, inclination: 1.3 },
+  saturn:   { orbit: 10759.22,rotation: 0.444, eccentricity: 0.052, inclination: 2.5 },
+  uranus:   { orbit: 30688.5, rotation: -0.718, eccentricity: 0.047, inclination: 0.8 }, // retrograde
+  neptune:  { orbit: 60182,   rotation: 0.671, eccentricity: 0.010, inclination: 1.8 },
+  pluto:    { orbit: 90560,   rotation: -6.387, eccentricity: 0.244, inclination: 17.2 }, // retrograde
+  sun:      { orbit: 0,       rotation: 25.0, eccentricity: 0, inclination: 0 } // sun's rotation ~25 days, no orbit, placeholder values
 };
 
 // Precompute normalized angular speeds (radians per animation frame, relative to Earth)
@@ -50,19 +50,24 @@ Object.keys(planetPhysicalData).forEach(name => {
 });
 
 export const moonOrbitData = new Map(); // Map from earth group to {pivot, moon}
-export const planetOrbitData = new Map(); // Map from planet group to its orbital params {a, e, n, M}
+export const planetOrbitData = new Map(); // Map from planet group to its orbital params {a, e, n, M, i}
 
-export function createOrbitLine(semiMajorAxis, eccentricity, segments = 128, color = 0xffffff, opacity = 0.25) {
+export function createOrbitLine(semiMajorAxis, eccentricity, inclinationRad, segments = 128, color = 0xffffff, opacity = 0.25) {
   const geometry = new THREE.BufferGeometry();
   const positions = [];
 
   if (eccentricity < 0 || eccentricity >= 1) {
-    // For simplicity, fallback to a circle if eccentricity is invalid or for parabolic/hyperbolic (which are open)
-    // Or handle error appropriately
-    console.warn(`Invalid eccentricity ${eccentricity} for orbit line, drawing circle.`);
+    // Fallback for invalid eccentricity or non-elliptical orbits (e.g., parabolic)
+    console.warn(`Invalid eccentricity ${eccentricity} for orbit line, drawing inclined circle or flat circle.`);
     for (let i = 0; i <= segments; i++) {
       const theta = (i / segments) * Math.PI * 2;
-      positions.push(Math.cos(theta) * semiMajorAxis, 0, Math.sin(theta) * semiMajorAxis);
+      const x_orb = Math.cos(theta) * semiMajorAxis;
+      const z_orb = Math.sin(theta) * semiMajorAxis;
+      // Apply inclination
+      const x_ref = x_orb;
+      const y_ref = z_orb * Math.sin(inclinationRad);
+      const z_ref = z_orb * Math.cos(inclinationRad);
+      positions.push(x_ref, y_ref, z_ref);
     }
   } else {
     const a = semiMajorAxis;
@@ -70,20 +75,17 @@ export function createOrbitLine(semiMajorAxis, eccentricity, segments = 128, col
     const b = a * Math.sqrt(1 - e * e); // Semi-minor axis
     const c = a * e; // Distance from center to focus
 
-    // We want the Sun (at 0,0,0) to be at one focus.
-    // The center of the ellipse will be at (-c, 0, 0) if perihelion is on +X axis.
-    // Points on ellipse relative to its center (cx, cz) = (-c,0):
-    // x_rel_center = a * cos(theta_param)
-    // z_rel_center = b * sin(theta_param)
-    // So, points relative to focus (Sun at 0,0,0):
-    // x_abs = (a * cos(theta_param)) - c
-    // z_abs = b * sin(theta_param)
-
     for (let i = 0; i <= segments; i++) {
       const thetaParam = (i / segments) * Math.PI * 2; // Parameter angle for ellipse
-      const x = a * Math.cos(thetaParam) - c;
-      const z = b * Math.sin(thetaParam);
-      positions.push(x, 0, z); 
+      // Coordinates in the orbital plane, with focus (Sun) at origin
+      const x_orb = a * Math.cos(thetaParam) - c;
+      const z_orb = b * Math.sin(thetaParam);
+      
+      // Apply inclination: Rotate around the x-axis of the reference frame (ecliptic)
+      const x_ref = x_orb;
+      const y_ref = z_orb * Math.sin(inclinationRad);
+      const z_ref = z_orb * Math.cos(inclinationRad);
+      positions.push(x_ref, y_ref, z_ref); 
     }
   }
 
@@ -130,7 +132,7 @@ export function createPlanet({ texture, size, name }, position, shapes) {
       earthSpinnner: earthAxialSpinGroup // For Earth's axial spin
     });
 
-    const moonOrbitLine = createOrbitLine(12.0, 0, 128, 0xffffff, 0.3);
+    const moonOrbitLine = createOrbitLine(12.0, 0, 0, 128, 0xffffff, 0.3); // Moon orbit assumed in Earth's orbital plane for now (0 inclination relative to it)
     earthSystemGroup.add(moonOrbitLine); // Add orbit line to the main system group
 
     earthSystemGroup.position.copy(position); // Position the whole system

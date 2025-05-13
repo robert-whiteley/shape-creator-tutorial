@@ -69,7 +69,7 @@ export function updateCelestialAnimations({
     // Animate planet orbit around the sun using Keplerian elements
     if (planetOrbitData.has(shape)) {
       const orbitalParams = planetOrbitData.get(shape); // This is a reference to the object in the Map
-      let { a, e, n, M } = orbitalParams;
+      let { a, e, n, M, i } = orbitalParams; // Added i for inclination
 
       // 1. Update Mean Anomaly (M)
       M += n * simDaysElapsedInFrame;
@@ -89,15 +89,20 @@ export function updateCelestialAnimations({
       // r = a * (1 - e * cos(E))
       const r = a * (1 - e * Math.cos(E));
 
-      // 5. Calculate Cartesian coordinates (x, z) assuming orbit in XZ plane
-      // Sun is at (0,0,0) which is a focus of the ellipse.
-      const x = r * Math.cos(nu);
-      const z = r * Math.sin(nu);
-      // y = 0 for now (no orbital inclination)
+      // 5. Calculate Cartesian coordinates (x_orb, z_orb) in the planet's orbital plane
+      // (assuming perihelion is along the x-axis of this plane)
+      const x_orb = r * Math.cos(nu);
+      const z_orb = r * Math.sin(nu);
+      
+      // Apply inclination: Rotate around the x-axis of the reference frame (ecliptic)
+      // This assumes the line of nodes is along the x-axis.
+      const x_ref = x_orb;
+      const y_ref = z_orb * Math.sin(i);
+      const z_ref = z_orb * Math.cos(i);
 
       // 6. Update planet's position
       // 'shape' is the planetGroup itself (e.g., earthSystemGroup or individual planet's group)
-      shape.position.set(x, 0, z);
+      shape.position.set(x_ref, y_ref, z_ref);
 
       // 7. Store updated M back into the orbitalParams object in the map
       orbitalParams.M = M; 
