@@ -4,16 +4,16 @@
 // Assumes THREE is globally available or imported elsewhere
 
 export const planetData = [
-  { name: 'sun', texture: 'textures/sun.jpg', size: 1.2 * 0.8 },
-  { name: 'mercury', texture: 'textures/mercury.jpg', size: 0.25 * 0.8 },
-  { name: 'venus', texture: 'textures/venus.jpg', size: 0.4 * 0.8 },
-  { name: 'earth', texture: 'textures/earth.jpg', size: 0.5 * 0.8 },
-  { name: 'mars', texture: 'textures/mars.jpg', size: 0.35 * 0.8 },
-  { name: 'jupiter', texture: 'textures/jupiter.jpg', size: 0.9 * 0.8 },
-  { name: 'saturn', texture: 'textures/saturn.jpg', size: 0.8 * 0.8 },
-  { name: 'uranus', texture: 'textures/uranus.jpg', size: 0.6 * 0.8 },
-  { name: 'neptune', texture: 'textures/neptune.jpg', size: 0.6 * 0.8 },
-  { name: 'pluto', texture: 'textures/pluto.jpg', size: 0.18 * 0.8 }
+  { name: 'sun', texture: 'textures/sun.jpg', size: 1.2 },
+  { name: 'mercury', texture: 'textures/mercury.jpg', size: 0.25 },
+  { name: 'venus', texture: 'textures/venus.jpg', size: 0.4 },
+  { name: 'earth', texture: 'textures/earth.jpg', size: 0.5 },
+  { name: 'mars', texture: 'textures/mars.jpg', size: 0.35 },
+  { name: 'jupiter', texture: 'textures/jupiter.jpg', size: 0.9 },
+  { name: 'saturn', texture: 'textures/saturn.jpg', size: 0.8 },
+  { name: 'uranus', texture: 'textures/uranus.jpg', size: 0.6 },
+  { name: 'neptune', texture: 'textures/neptune.jpg', size: 0.6 },
+  { name: 'pluto', texture: 'textures/pluto.jpg', size: 0.18 }
 ];
 
 // Create and export planetBaseSizes and sunBaseSize
@@ -232,7 +232,7 @@ export function createPlanet({ texture, size, name }, position, shapes) {
     earthSystemGroup.add(axialSpinGroup); // Add the already tilted axialSpinGroup
 
     const moonPivot = new THREE.Group(); // Moon's orbital pivot
-    const moonGeometry = new THREE.SphereGeometry(0.136 * 0.8, 32, 32);
+    const moonGeometry = new THREE.SphereGeometry(0.136, 32, 32);
     const moonTexture = new THREE.TextureLoader().load('textures/moon.jpg');
     const moonMaterial = new THREE.MeshStandardMaterial({ map: moonTexture });
     const moonMesh = new THREE.Mesh(moonGeometry, moonMaterial);
