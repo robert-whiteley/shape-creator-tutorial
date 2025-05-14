@@ -46,11 +46,11 @@ export function updateCelestialAnimations({
 
     // Earth System (Earth axial spin, Moon orbit)
     if (moonOrbitData.has(shape)) { // This is the earthSystemGroup
-      const { pivot: moonOrbitalPivot, earthSpinnner } = moonOrbitData.get(shape);
+      const { pivot: moonOrbitalPivot, earthSpinner } = moonOrbitData.get(shape);
 
       // Earth's axial spin (on its dedicated spinner group)
-      if (earthSpinnner && planetSpeeds['earth']) {
-        earthSpinnner.rotation.y += planetSpeeds['earth'].rotation * simDaysElapsedInFrame;
+      if (earthSpinner && planetSpeeds['earth']) {
+        earthSpinner.rotation.y += planetSpeeds['earth'].rotation * simDaysElapsedInFrame;
       }
 
       // Moon's orbit (on its dedicated pivot - circular around Earth)

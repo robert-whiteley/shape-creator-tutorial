@@ -246,7 +246,7 @@ export function createPlanet({ texture, size, name }, position, shapes) {
     moonOrbitData.set(earthSystemGroup, { 
       pivot: moonPivot, // For moon's orbit
       moon: moonMesh,
-      earthSpinnner: axialSpinGroup // Store the new axialSpinGroup as earthSpinner
+      earthSpinner: axialSpinGroup // Corrected: Store the new axialSpinGroup as earthSpinner
     });
 
     const moonOrbitLine = createOrbitLine(12.0, 0, 0, 0, 0, 128, 0xffffff, 0.3); // Moon orbit assumed in Earth's orbital plane for now (0 inclination relative to it)

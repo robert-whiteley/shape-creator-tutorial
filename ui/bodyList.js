@@ -51,9 +51,9 @@ export function initBodyList({
       if (shapeGroup) {
         if (bodyNameKey === 'earth') {
           if (moonOrbitData.has(shapeGroup)) { // shapeGroup is earthSystemGroup
-            const { earthSpinnner } = moonOrbitData.get(shapeGroup);
-            if (earthSpinnner && earthSpinnner.children[0]) {
-              targetObjectMesh = earthSpinnner.children[0]; // Actual Earth sphere mesh
+            const { earthSpinner } = moonOrbitData.get(shapeGroup);
+            if (earthSpinner && earthSpinner.children[0]) {
+              targetObjectMesh = earthSpinner.children[0]; // Actual Earth sphere mesh
             }
           }
         } else {

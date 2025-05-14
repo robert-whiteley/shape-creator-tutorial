@@ -15,11 +15,11 @@ export function setPlanetScales({
     if (planetName === 'earth') {
       // Earth system uses moonOrbitData to get specific meshes
       if (moonOrbitData.has(shape)) {
-        const { moon: moonMesh, earthSpinnner } = moonOrbitData.get(shape);
+        const { moon: moonMesh, earthSpinner } = moonOrbitData.get(shape);
         
-        // Scale Earth mesh (child of earthSpinnner group)
-        if (earthSpinnner && earthSpinnner.children[0]) {
-          earthSpinnner.children[0].scale.set(scale, scale, scale);
+        // Scale Earth mesh (child of earthSpinner group)
+        if (earthSpinner && earthSpinner.children[0]) {
+          earthSpinner.children[0].scale.set(scale, scale, scale);
         }
         
         // Scale Moon mesh (directly available from moonOrbitData)

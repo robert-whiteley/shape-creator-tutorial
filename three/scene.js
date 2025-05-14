@@ -172,8 +172,8 @@ export function initThree({
     // Draw orbit line at correct radius (this will need to become an elliptical line)
     // Only draw orbit lines for bodies that actually orbit
     if (planetBodyData.name !== 'sun' && scaledSemiMajorAxis > 0) { 
-      const orbitLine = createOrbitLine(scaledSemiMajorAxis, eccentricity, inclinationRad, nodeRad, periRad, 128, 0xffffff, 0.2);
-      solarSystemGroup.add(orbitLine);
+    const orbitLine = createOrbitLine(scaledSemiMajorAxis, eccentricity, inclinationRad, nodeRad, periRad, 128, 0xffffff, 0.2);
+    solarSystemGroup.add(orbitLine);
     }
   });
   // Add starmap sphere (background)
