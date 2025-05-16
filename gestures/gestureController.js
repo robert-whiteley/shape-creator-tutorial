@@ -20,27 +20,7 @@ export function initGestureController({
   let livePreviousPinchDistance = null;
   let lastPanPosition = null;
 
-  // Debug: visualize the focal point
-  let debugFocalSphere = null;
-  function updateDebugFocalPoint(camera) {
-    if (!window.getScene) return;
-    const scene = window.getScene();
-    if (!debugFocalSphere) {
-      const geometry = new THREE.SphereGeometry(100, 16, 16);
-      const material = new THREE.MeshBasicMaterial({ color: 0xff0000 });
-      debugFocalSphere = new THREE.Mesh(geometry, material);
-      scene.add(debugFocalSphere);
-    }
-    // Compute the point 1,000 units in front of the camera
-    const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
-    const pos = camera.getWorldPosition(new THREE.Vector3());
-    dir.multiplyScalar(1000);
-    debugFocalSphere.position.copy(pos).add(dir);
-  }
-
   function processHandResults(results) {
-    // Always update debug focal point
-    updateDebugFocalPoint(getCamera());
     if (ctx && ctx.canvas) {
         ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
         for (const landmarks of results.multiHandLandmarks) {
@@ -92,21 +72,19 @@ export function initGestureController({
           // Zoom (dolly): move forward/back along local Z
           if (yawObject) {
             const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(yawObject.quaternion).normalize();
-            yawObject.position.addScaledVector(forward, -deltaDist * 1000); // Negative so pinch out = zoom in
+            yawObject.position.addScaledVector(forward, deltaDist * 1000); // Positive so pinch out = zoom out
           }
 
           gesturePreviousTwoHandMidY = midY;
           gesturePreviousTwoHandMidX = midX;
-          livePreviousPinchDistance = distance;
+          // Do NOT update livePreviousPinchDistance here
         }
-        // After applying rotation, update debug focal point
-        updateDebugFocalPoint(camera);
         return; // Processed two-hand gesture
       }
     } else {
       gesturePreviousTwoHandMidY = null;
       gesturePreviousTwoHandMidX = null;
-      livePreviousPinchDistance = null;
+      livePreviousPinchDistance = null; // Only reset when both hands released
     }
 
     // One-hand pinch for panning (optional, can be disabled)

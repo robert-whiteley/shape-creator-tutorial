@@ -36,7 +36,7 @@ export function initThree({
   camera.position.set(0, 0, 0); // Camera always at origin in its parent
   if (pitchObject && yawObject) {
     pitchObject.add(camera);
-    yawObject.position.set(0, 0, 0); // Initial camera position in world
+    yawObject.position.set(0, 100, 300); // Initial camera position in world
     scene.add(yawObject);
   }
   renderer = new THREE.WebGLRenderer({ alpha: true });
