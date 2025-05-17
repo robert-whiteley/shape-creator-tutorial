@@ -203,7 +203,7 @@ export function createPlanet({ texture, size, name }, position, shapes) {
   let material;
   if (name === 'sun') {
     // Sun should glow and not be affected by scene lights
-    material = new THREE.MeshBasicMaterial({ map: planetTexture, emissive: 0xffddaa, emissiveIntensity: 0.6 });
+    material = new THREE.MeshBasicMaterial({ map: planetTexture, color: 0xffddaa });
   } else {
     material = new THREE.MeshStandardMaterial({ map: planetTexture });
   }

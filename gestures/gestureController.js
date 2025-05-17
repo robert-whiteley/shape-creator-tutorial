@@ -6,7 +6,9 @@ export function initGestureController({
   yawObject, // FPS yaw group
   pitchObject, // FPS pitch group
   isPinch,        // function from gestures/hands.js: (landmarks) => boolean
-  ctx             // 2D canvas context for drawing landmarks (optional)
+  ctx,             // 2D canvas context for drawing landmarks (optional)
+  getTrackedBody, // New: function to get the current tracked body
+  setTrackedBody  // New: function (bodyOrNull) => void
 }) {
 
   // First-person camera state
@@ -21,6 +23,45 @@ export function initGestureController({
   let lastPanPosition = null;
 
   function processHandResults(results) {
+    const currentTrackedBody = getTrackedBody ? getTrackedBody() : null;
+
+    if (currentTrackedBody) {
+      let handActivityDetected = false;
+      if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+        if (results.multiHandLandmarks.length === 2) {
+          const [l, r] = results.multiHandLandmarks;
+          if (isPinch(l) && isPinch(r)) handActivityDetected = true;
+        } else {
+          // Check single hand pinch as well
+          for (const landmarks of results.multiHandLandmarks) {
+            if (isPinch(landmarks)) {
+              handActivityDetected = true;
+              break;
+            }
+          }
+        }
+      }
+
+      if (handActivityDetected) {
+        console.log("Gesture detected while tracking, breaking track.");
+        if (setTrackedBody) setTrackedBody(null);
+        // Reset internal gesture states to prevent jumps when resuming free control
+        gesturePreviousTwoHandAngle = null;
+        gesturePreviousTwoHandMidY = null;
+        gesturePreviousTwoHandMidX = null;
+        lastTwoHandDistance = null;
+        livePreviousPinchDistance = null;
+        lastPanPosition = null;
+        return; // Stop further gesture processing for camera control this frame
+      }
+      // If tracking but no specific "break" gesture, also return to let tracking control camera
+      // This ensures that if hands are present but not making a defined 'break' gesture,
+      // they don't accidentally control the camera while tracking is active.
+      if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+          return;
+      }
+    }
+
     if (ctx && ctx.canvas) {
         ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
         for (const landmarks of results.multiHandLandmarks) {

@@ -10,7 +10,8 @@ export function initBodyList({
   planetBaseSizes,
   sunBaseSize,
   moonOrbitData, // Map from earthSystemGroup to its moon data
-  solarSystemGroup // The main THREE.Group for the solar system, used for quaternion
+  solarSystemGroup, // The main THREE.Group for the solar system, used for quaternion
+  onBodyClick // New callback: onBodyClick(targetGroup, bodyName, isMoon)
 }) {
   if (!bodiesListUlElement) {
     console.error("Bodies list UL element not provided to initBodyList.");
@@ -25,8 +26,20 @@ export function initBodyList({
     const sunSpan = document.createElement('span');
     sunSpan.textContent = 'Sun';
     sunSpan.style.cursor = 'pointer';
+    sunSpan.dataset.bodyName = 'sun'; // Store body name
     sunLi.appendChild(sunSpan);
     bodiesListUlElement.appendChild(sunLi);
+
+    sunSpan.addEventListener('click', () => {
+      if (onBodyClick) {
+        const sunMesh = getSunMesh(); // getSunMesh() should return the sun's THREE.Group
+        if (sunMesh) {
+          onBodyClick(sunMesh, 'sun', false);
+        } else {
+          console.warn("Sun mesh not found for click event.");
+        }
+      }
+    });
 
     const planetsUl = document.createElement('ul');
     sunLi.appendChild(planetsUl);
@@ -40,8 +53,20 @@ export function initBodyList({
       const planetSpan = document.createElement('span');
       planetSpan.textContent = planetDisplayName;
       planetSpan.style.cursor = 'pointer';
+      planetSpan.dataset.bodyName = planetNameLower; // Store body name
       planetLi.appendChild(planetSpan);
       planetsUl.appendChild(planetLi);
+
+      planetSpan.addEventListener('click', () => {
+        if (onBodyClick) {
+          const targetShape = shapes.find(s => s.userData.name === planetNameLower);
+          if (targetShape) {
+            onBodyClick(targetShape, planetNameLower, false);
+          } else {
+            console.warn(`Shape not found for ${planetNameLower}`);
+          }
+        }
+      });
 
       if (planetNameLower === 'earth') {
         const moonsUl = document.createElement('ul');
@@ -51,8 +76,25 @@ export function initBodyList({
         const moonSpan = document.createElement('span');
         moonSpan.textContent = 'Moon';
         moonSpan.style.cursor = 'pointer';
+        moonSpan.dataset.bodyName = 'moon'; // Store body name
         moonLi.appendChild(moonSpan);
         moonsUl.appendChild(moonLi);
+
+        moonSpan.addEventListener('click', () => {
+          if (onBodyClick) {
+            const earthSystemGroup = shapes.find(s => s.userData.name === 'earth');
+            if (earthSystemGroup && moonOrbitData.has(earthSystemGroup)) {
+              const moonData = moonOrbitData.get(earthSystemGroup);
+              if (moonData && moonData.moon) {
+                onBodyClick(moonData.moon, 'moon', true); // Pass the moon mesh itself
+              } else {
+                console.warn("Moon mesh not found in moonOrbitData for Earth.");
+              }
+            } else {
+              console.warn("Earth system group or moon data not found for Moon click.");
+            }
+          }
+        });
       }
     });
   }
