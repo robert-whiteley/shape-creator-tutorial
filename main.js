@@ -160,23 +160,13 @@ const handleBodyClick = (targetMesh, bodyName, isMoon, cc) => {
   // Ensure baseSizeForOffset is a positive number. It ALREADY represents visual size.
   baseSizeForOffset = Math.max(0.1, baseSizeForOffset); 
 
-  const baseViewDir = new THREE.Vector3(0, 0.2, -1); 
-  baseViewDir.normalize();
-
-  const solarSystemWorldQuaternion = new THREE.Quaternion();
-  solarSystemGroup.getWorldQuaternion(solarSystemWorldQuaternion);
-  
-  const worldOrientedNormalizedViewDir = baseViewDir.clone().applyQuaternion(solarSystemWorldQuaternion);
-
   console.log(`  Target: ${bodyName}, World Pos: ${targetWorldPosition.x.toFixed(2)}, ${targetWorldPosition.y.toFixed(2)}, ${targetWorldPosition.z.toFixed(2)}`);
   console.log(`  BaseSize for offset calc: ${baseSizeForOffset.toFixed(2)} (scaled)`);
-  console.log(`  Calculated worldOrientedNormalizedViewDir: ${worldOrientedNormalizedViewDir.x.toFixed(2)}, ${worldOrientedNormalizedViewDir.y.toFixed(2)}, ${worldOrientedNormalizedViewDir.z.toFixed(2)}`);
 
   cc.startFlyToAnimation({
     lookAtTargetPoint: targetWorldPosition,
     meshToFollowAfterAnimation: targetMesh,
-    baseSizeForOffset: baseSizeForOffset,
-    worldOrientedNormalizedViewDir: worldOrientedNormalizedViewDir
+    baseSizeForOffset: baseSizeForOffset
   });
 };
 
