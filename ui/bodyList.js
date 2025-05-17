@@ -4,18 +4,23 @@
 export function initBodyList({
   bodiesListUlElement,
   planetData,
-  getCamera,
+  getCamera, // Retained for potential future use, though not directly used if cc handles all
   getSunMesh,
   shapes, // array of planet/earthSystem groups
   planetBaseSizes,
   sunBaseSize,
   moonOrbitData, // Map from earthSystemGroup to its moon data
   solarSystemGroup, // The main THREE.Group for the solar system, used for quaternion
-  onBodyClick // New callback: onBodyClick(targetGroup, bodyName, isMoon)
+  cameraController, // Added: direct reference to cameraController
+  onBodyClick // Callback: onBodyClick(targetGroup, bodyName, isMoon, cameraController)
 }) {
   if (!bodiesListUlElement) {
     console.error("Bodies list UL element not provided to initBodyList.");
     return;
+  }
+  if (!cameraController) {
+    console.warn("initBodyList: cameraController was not provided. Fly-to clicks may not work.");
+    // Decide if this is a critical error or just a warning
   }
 
   function updateBodiesListInternal() {
@@ -32,9 +37,10 @@ export function initBodyList({
 
     sunSpan.addEventListener('click', () => {
       if (onBodyClick) {
-        const sunMesh = getSunMesh(); // getSunMesh() should return the sun's THREE.Group
+        const sunMesh = getSunMesh(); 
         if (sunMesh) {
-          onBodyClick(sunMesh, 'sun', false);
+          // Pass cameraController to the onBodyClick callback
+          onBodyClick(sunMesh, 'sun', false, cameraController);
         } else {
           console.warn("Sun mesh not found for click event.");
         }
@@ -61,7 +67,8 @@ export function initBodyList({
         if (onBodyClick) {
           const targetShape = shapes.find(s => s.userData.name === planetNameLower);
           if (targetShape) {
-            onBodyClick(targetShape, planetNameLower, false);
+            // Pass cameraController to the onBodyClick callback
+            onBodyClick(targetShape, planetNameLower, false, cameraController);
           } else {
             console.warn(`Shape not found for ${planetNameLower}`);
           }
@@ -86,7 +93,8 @@ export function initBodyList({
             if (earthSystemGroup && moonOrbitData.has(earthSystemGroup)) {
               const moonData = moonOrbitData.get(earthSystemGroup);
               if (moonData && moonData.moon) {
-                onBodyClick(moonData.moon, 'moon', true); // Pass the moon mesh itself
+                // Pass cameraController to the onBodyClick callback
+                onBodyClick(moonData.moon, 'moon', true, cameraController);
               } else {
                 console.warn("Moon mesh not found in moonOrbitData for Earth.");
               }
