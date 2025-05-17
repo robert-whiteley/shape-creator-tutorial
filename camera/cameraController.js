@@ -19,7 +19,7 @@ export function initCameraController({
   let followedObject = null; // { mesh, baseSize, worldOrientedNormalizedViewDir }
   let targetObjectForAnimation = null; // Stores the mesh details to be followed after animation
 
-  const RELATIVE_VIEW_DISTANCE_MULTIPLIER = 20.0; // Increased for better viewing distance
+  const RELATIVE_VIEW_DISTANCE_MULTIPLIER = 2.5; // Target 1.5 radii from surface (2.5 radii from center)
 
   function startFlyToAnimation({ 
     lookAtTargetPoint,          // THREE.Vector3: world position of the object to look at
@@ -31,22 +31,22 @@ export function initCameraController({
 
     cancelAnimationsAndFollowInternal(); // Clear any existing state first
 
+    const initialCameraWorldPos = new THREE.Vector3();
+    camera.getWorldPosition(initialCameraWorldPos);
+
     // Set the final point the camera should be looking at
     cameraAnimationEndLookAt.copy(lookAtTargetPoint);
 
     // Calculate the camera's final offset position
-    const currentScale = parseInt(scaleSliderElement.value) || 1;
-    const visualActualSize = baseSizeForOffset * currentScale;
-    const offsetDistance = visualActualSize * RELATIVE_VIEW_DISTANCE_MULTIPLIER;
+    const offsetDistance = baseSizeForOffset * RELATIVE_VIEW_DISTANCE_MULTIPLIER;
 
     // Determine the direction for the final offset: from target to where camera started animation
-    const directionForFinalOffset = new THREE.Vector3().subVectors(camera.position, lookAtTargetPoint);
-    if (directionForFinalOffset.lengthSq() < 0.0001) { // Camera is (almost) at the target point
-        // Fallback: Use camera's current forward direction, or a default offset like (0,0,1) if needed
-        camera.getWorldDirection(directionForFinalOffset); // Get current camera forward
-        directionForFinalOffset.negate(); // We want to be behind the target from its perspective
-        if (directionForFinalOffset.lengthSq() < 0.0001) { // Still no good (e.g. camera at origin looking at origin)
-            directionForFinalOffset.set(0, 0.3, 1); // Default fallback offset direction
+    const directionForFinalOffset = new THREE.Vector3().subVectors(initialCameraWorldPos, lookAtTargetPoint);
+    if (directionForFinalOffset.lengthSq() < 0.0001) { 
+        camera.getWorldDirection(directionForFinalOffset); 
+        directionForFinalOffset.negate(); 
+        if (directionForFinalOffset.lengthSq() < 0.0001) { 
+            directionForFinalOffset.set(0, 0.3, 1); 
         }
     }
     directionForFinalOffset.normalize();
@@ -54,11 +54,19 @@ export function initCameraController({
     const finalOffsetVector = directionForFinalOffset.clone().multiplyScalar(offsetDistance);
     cameraAnimationEndPos.copy(lookAtTargetPoint).add(finalOffsetVector);
 
-    // Capture the camera's current position for the start of the animation
-    cameraAnimationStartPos.copy(camera.position);
-    // const tempWorldDirection = new THREE.Vector3(); // Not needed for P1 calculation this way
-    // camera.getWorldDirection(tempWorldDirection); // Not needed for P1 calculation this way
-    // cameraAnimationStartLookAt.copy(camera.position).add(tempWorldDirection.multiplyScalar(10)); // Not used
+    console.log("--- Fly-to Animation Calculation Values ---");
+    console.log("Target Body Center (lookAtTargetPoint):", lookAtTargetPoint.x.toFixed(2), lookAtTargetPoint.y.toFixed(2), lookAtTargetPoint.z.toFixed(2));
+    console.log("Camera Start World Pos (initialCameraWorldPos):", initialCameraWorldPos.x.toFixed(2), initialCameraWorldPos.y.toFixed(2), initialCameraWorldPos.z.toFixed(2));
+    console.log("Planet Base Size (baseSizeForOffset):", baseSizeForOffset.toFixed(2));
+    console.log("RELATIVE_VIEW_DISTANCE_MULTIPLIER:", RELATIVE_VIEW_DISTANCE_MULTIPLIER.toFixed(2));
+    console.log("Calculated Offset Distance (offsetDistance):", offsetDistance.toFixed(2));
+    console.log("Direction for Final Offset (normalized):", directionForFinalOffset.x.toFixed(2), directionForFinalOffset.y.toFixed(2), directionForFinalOffset.z.toFixed(2));
+    console.log("Final Offset Vector (to be added to target center):", finalOffsetVector.x.toFixed(2), finalOffsetVector.y.toFixed(2), finalOffsetVector.z.toFixed(2));
+    console.log("Camera Final Destination (cameraAnimationEndPos):", cameraAnimationEndPos.x.toFixed(2), cameraAnimationEndPos.y.toFixed(2), cameraAnimationEndPos.z.toFixed(2));
+    console.log("-------------------------------------------");
+
+    // Capture the camera's current world position for the start of the animation
+    cameraAnimationStartPos.copy(initialCameraWorldPos);
 
     // Calculate control point P1 for Bezier curve
     const initialCamDir = new THREE.Vector3();
@@ -135,29 +143,48 @@ export function initCameraController({
       // Ease in-out quad easing
       progress = progress < 0.5 ? 2 * progress * progress : 1 - Math.pow(-2 * progress + 2, 2) / 2; 
 
+      let calculatedWorldPositionForCamera = new THREE.Vector3();
+
+      // Restore Original Bezier/Linear Path Logic
       if (progress < TRANSITION_PROGRESS_POINT) {
         // Use Bezier curve for the first part of the animation
-        const tBez = progress; // Use original progress for this segment calculation up to transition point
+        const tBez = progress; 
         const oneMinusTBez = 1.0 - tBez;
         const p0CoeffBez = oneMinusTBez * oneMinusTBez;
         const p1CoeffBez = 2.0 * oneMinusTBez * tBez;
         const p2CoeffBez = tBez * tBez;
 
-        camera.position.copy(cameraAnimationStartPos).multiplyScalar(p0CoeffBez)
+        calculatedWorldPositionForCamera.copy(cameraAnimationStartPos).multiplyScalar(p0CoeffBez)
             .addScaledVector(cameraAnimationControlPoint, p1CoeffBez)
             .addScaledVector(cameraAnimationEndPos, p2CoeffBez);
       } else {
         // Use linear interpolation for the remainder of the animation
         const linearProgress = (progress - TRANSITION_PROGRESS_POINT) / (1.0 - TRANSITION_PROGRESS_POINT);
-        camera.position.lerpVectors(cameraAnimationTransitionPointPos, cameraAnimationEndPos, linearProgress);
+        calculatedWorldPositionForCamera.lerpVectors(cameraAnimationTransitionPointPos, cameraAnimationEndPos, linearProgress);
       }
+
+      // Convert target world position to parent's local space and set camera.position
+      if (camera.parent) {
+        camera.parent.worldToLocal(camera.position.copy(calculatedWorldPositionForCamera));
+      } else {
+        camera.position.copy(calculatedWorldPositionForCamera);
+      }
+      // Update matrix world for the camera after changing its local position, 
+      // so subsequent lookAt uses the correct new world position of the camera.
+      camera.updateMatrixWorld(true); 
       
       // Always look at the target body's center
       camera.lookAt(cameraAnimationEndLookAt);
 
       if (progress === 1.0) {
         isCameraAnimating = false;
-        camera.position.copy(cameraAnimationEndPos); // Snap to final position
+        // Final snap: Convert world end position to parent's local space
+        if (camera.parent) {
+            camera.parent.worldToLocal(camera.position.copy(cameraAnimationEndPos));
+        } else {
+            camera.position.copy(cameraAnimationEndPos);
+        }
+        camera.updateMatrixWorld(true);
         camera.lookAt(cameraAnimationEndLookAt);   // Ensure final orientation is correct
 
         if (targetObjectForAnimation) {
@@ -179,7 +206,15 @@ export function initCameraController({
       const desiredCameraPosition = tempWorldPos.clone().add(currentOffsetVector);
 
       // Smoothly interpolate camera position towards the desired tracking position
-      camera.position.lerp(desiredCameraPosition, 0.1); 
+      // Convert desiredCameraPosition (world) to camera.parent's local space for LERP
+      if (camera.parent) {
+        const localDesiredCameraPosition = new THREE.Vector3();
+        camera.parent.worldToLocal(localDesiredCameraPosition.copy(desiredCameraPosition));
+        camera.position.lerp(localDesiredCameraPosition, 0.1); 
+      } else {
+        camera.position.lerp(desiredCameraPosition, 0.1); 
+      }
+      camera.updateMatrixWorld(true); // Ensure matrix is updated before lookAt
       camera.lookAt(tempWorldPos); // Continuously look at the followed object's center
     }
   }

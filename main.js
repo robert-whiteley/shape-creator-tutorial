@@ -75,10 +75,18 @@ let simulationTime = Date.now(); // ms since epoch, starts at real time
 // Initialize Gesture Controller
 const processHandResults = initGestureController({
   getCamera,
-  solarSystemGroup,
-  cameraControls: cameraController, // Pass the cameraController here
+  yawObject,
+  pitchObject,
   isPinch,
-  ctx
+  ctx,
+  getTrackedBody: () => {
+    return cameraController.isAnimating() || cameraController.getTrackedBodyInfo() !== null;
+  },
+  setTrackedBody: (body) => {
+    if (body === null) {
+      cameraController.cancelAnimationsAndFollow();
+    }
+  }
 });
 
 let hands = setupHands({ onResults: processHandResults });
@@ -126,8 +134,9 @@ initThree({
   moonOrbitData,
   planetOrbitData,
   shapes,
-  animateCallback: animate
-  // Note: yawObject and pitchObject are not directly passed if cameraController manages the main camera
+  animateCallback: animate,
+  yawObject,
+  pitchObject
 });
 
 // handleBodyClick function - accepts 'cc' (cameraController instance) as a parameter
