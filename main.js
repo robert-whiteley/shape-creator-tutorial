@@ -37,6 +37,7 @@ let speedSlider = document.getElementById('speed-slider');
 let speedValue = document.getElementById('speed-value');
 let scaleSlider = document.getElementById('scale-slider');
 let scaleValue = document.getElementById('scale-value');
+let velocityDisplay = document.getElementById('velocity-display');
 
 // --- Fly-to and Tracking State ---
 let trackedBody = null;
@@ -91,6 +92,14 @@ const processHandResults = initGestureController({
 
 let hands = setupHands({ onResults: processHandResults });
 
+// --- Velocity Calculation State ---
+let lastCameraPosition = new THREE.Vector3(); // Still used for the actual velocity value
+let lastPositionTimestampPerf; // Undefined initially, will use performance.now()
+let lastYawObjectPosition = new THREE.Vector3(); // For debugging gesture-driven movement
+let smoothedVelocity = 0; // For displaying a smoother velocity
+const SMOOTHING_FACTOR = 0.1; // Adjust for more or less smoothing (0.0 to 1.0)
+// --- End Velocity Calculation State ---
+
 initSpeedControls({
   speedSlider,
   speedValue,
@@ -98,14 +107,83 @@ initSpeedControls({
 });
 
 const animate = () => {
+  if (lastPositionTimestampPerf === undefined) {
+    const cam = getCamera();
+    if (cam) {
+        cam.getWorldPosition(lastCameraPosition);
+        lastPositionTimestampPerf = performance.now();
+        if (yawObject) { // Ensure yawObject exists
+            lastYawObjectPosition.copy(yawObject.position);
+        }
+    } else {
+        console.error("Velocity Calculation: Camera not available on first animate frame.");
+        lastPositionTimestampPerf = performance.now();
+        if (yawObject) { // Ensure yawObject exists
+          lastYawObjectPosition.copy(yawObject.position); // Initialize even if camera fails for some reason
+        }
+    }
+  }
+
   requestAnimationFrame(animate);
   const now = Date.now();
+  const nowPerf = performance.now();
+
   const deltaMs = now - lastAnimationTime;
   lastAnimationTime = now;
   simulationTime += deltaMs * speedMultiplier;
   updateSimDateDisplayModule(simulationTime);
 
   const simDaysElapsedInFrame = (deltaMs * speedMultiplier / (24 * 60 * 60 * 1000));
+
+  // --- Velocity Calculation ---
+  const currentCameraPosition = new THREE.Vector3();
+  const cam = getCamera();
+  if (cam) {
+    cam.getWorldPosition(currentCameraPosition);
+  } else {
+    console.error("Velocity calculation: Camera not found in animate loop.");
+    currentCameraPosition.copy(lastCameraPosition);
+  }
+
+  // Actual velocity calculation uses camera's world position change
+  const positionDelta = currentCameraPosition.distanceTo(lastCameraPosition);
+  const timeDeltaSeconds = (nowPerf - lastPositionTimestampPerf) / 1000.0;
+
+  let currentVelocity = 0;
+  if (timeDeltaSeconds > 0.0001) {
+    currentVelocity = positionDelta / timeDeltaSeconds;
+  }
+
+  // Apply smoothing
+  smoothedVelocity = SMOOTHING_FACTOR * currentVelocity + (1 - SMOOTHING_FACTOR) * smoothedVelocity;
+
+  // --- Logging for Debugging Gesture-driven yawObject movement ---
+  /* // Removing for now, as behavior is understood
+  if (yawObject) {
+    const yawPositionDelta = yawObject.position.distanceTo(lastYawObjectPosition);
+    console.log(
+      `VC_YAW: lastYawX: ${lastYawObjectPosition.x.toFixed(2)}, ` +
+      `currYawX: ${yawObject.position.x.toFixed(2)}, ` +
+      `yawDelta: ${yawPositionDelta.toFixed(4)}, ` + // How much yawObject itself moved
+      `camDelta: ${positionDelta.toFixed(4)}, ` + // How much camera's world pos changed
+      `dt: ${timeDeltaSeconds.toFixed(4)}, ` +
+      `vel: ${currentVelocity.toFixed(4)}, ` +
+      `smoothVel: ${smoothedVelocity.toFixed(4)}` // Log smoothed too
+    );
+    lastYawObjectPosition.copy(yawObject.position); // Update for next frame's yaw comparison
+  }
+  */
+  // --- End Logging --
+
+  if (velocityDisplay) {
+    // Display the smoothed velocity
+    velocityDisplay.textContent = `Velocity: ${smoothedVelocity.toFixed(2)} units/s`;
+  }
+
+  // Update for next frame (for actual velocity calculation)
+  lastCameraPosition.copy(currentCameraPosition);
+  lastPositionTimestampPerf = nowPerf;
+  // --- End Velocity Calculation ---
 
   updateCelestialAnimations({
     simDaysElapsedInFrame,
