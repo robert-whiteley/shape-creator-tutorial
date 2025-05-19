@@ -10,7 +10,6 @@ export const planetData = [
   { name: 'mercury', texture: 'textures/mercury.jpg', size: 0.003503185 }, // Radius: 2439.5 km
   { name: 'venus', texture: 'textures/venus.jpg', size: 0.008691036 },   // Radius: 6052 km
   { name: 'earth', texture: 'textures/earth.jpg', size: 0.009159362 },   // Radius: 6378 km
-  { name: 'moon', texture: 'textures/moon.jpg', size: 0.002495084 },    // Radius: 1737.5 km
   { name: 'mars', texture: 'textures/mars.jpg', size: 0.004876630 },     // Radius: 3396 km
   { name: 'jupiter', texture: 'textures/jupiter.jpg', size: 0.1026679 },   // Radius: 71492 km
   { name: 'saturn', texture: 'textures/saturn.jpg', size: 0.08655111 },  // Radius: 60268 km
