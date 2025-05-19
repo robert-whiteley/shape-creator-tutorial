@@ -3,7 +3,7 @@
 
 export function initCameraController({
   getCamera,          // Function to get the THREE.Camera instance
-  scaleSliderElement  // The HTML slider element for current visual scale
+  // scaleSliderElement  // The HTML slider element for current visual scale -- REMOVED
 }) {
   let isCameraAnimating = false;
   let animationStartTime = 0;
@@ -198,7 +198,10 @@ export function initCameraController({
     } else if (followedObject && followedObject.mesh && followedObject.worldOrientedNormalizedViewDir) {
       followedObject.mesh.getWorldPosition(tempWorldPos);
 
-      const currentScale = parseInt(scaleSliderElement.value) || 1;
+      // const currentScale = parseInt(scaleSliderElement.value) || 1; // OLD WAY
+      const currentScale = (followedObject.mesh.userData && typeof followedObject.mesh.userData.currentVisualScaleFactor === 'number') 
+                            ? followedObject.mesh.userData.currentVisualScaleFactor 
+                            : 1.0;
       const visualActualSize = followedObject.baseSize * currentScale;
       const newOffsetDistance = visualActualSize * RELATIVE_VIEW_DISTANCE_MULTIPLIER;
       
