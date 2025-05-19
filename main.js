@@ -223,37 +223,84 @@ const handleBodyClick = (targetMesh, bodyName, isMoon, cc) => {
     console.error("handleBodyClick: targetMesh is null for", bodyName);
     return;
   }
-  console.log("[Debug] In handleBodyClick, passed cc is:", cc);
+  // console.log("[Debug] In handleBodyClick, passed cc is:", cc);
   if (!cc) { 
     console.error("handleBodyClick: cameraController (cc parameter) was not provided or is falsy.");
     return;
   }
 
-  console.log(`%c--- handleBodyClick for: ${bodyName} ---`, 'color: green; font-weight: bold;');
+  console.log(`%c--- handleBodyClick for: ${bodyName}, isMoon: ${isMoon} ---`, 'color: green; font-weight: bold;');
 
   const targetWorldPosition = new THREE.Vector3();
   targetMesh.getWorldPosition(targetWorldPosition);
 
-  let baseSizeForOffset = sunBaseSize || 1.0; // Remove arbitrary 1.2 fallback, use 1.0 as minimal default
-  if (bodyName === 'sun') {
-    baseSizeForOffset = sunBaseSize || 1.0; 
-  } else if (isMoon && targetMesh.geometry && targetMesh.geometry.parameters) {
-    baseSizeForOffset = targetMesh.geometry.parameters.radius || 0.5;
-  } else if (planetBaseSizes && planetBaseSizes[bodyName]) {
-    baseSizeForOffset = planetBaseSizes[bodyName];
-  } else {
-    console.warn(`Could not determine specific base size for ${bodyName}, using default: ${baseSizeForOffset}`);
-  }
-  // Ensure baseSizeForOffset is a positive number. It ALREADY represents visual size.
-  baseSizeForOffset = Math.max(0.1, baseSizeForOffset); 
+  let actualFillMesh; // This is the mesh whose geometry.parameters.radius and scale.x define the visual size
 
-  console.log(`  Target: ${bodyName}, World Pos: ${targetWorldPosition.x.toFixed(2)}, ${targetWorldPosition.y.toFixed(2)}, ${targetWorldPosition.z.toFixed(2)}`);
-  console.log(`  BaseSize for offset calc: ${baseSizeForOffset.toFixed(2)} (scaled)`);
+  if (bodyName === 'sun') {
+    const sunPlanetGroup = getSunMesh();
+    if (sunPlanetGroup && sunPlanetGroup.children[0] && sunPlanetGroup.children[0].children[0]) {
+      actualFillMesh = sunPlanetGroup.children[0].children[0];
+    }
+  } else if (isMoon) {
+    // For the Moon, assume targetMesh IS the moon's fill mesh, as passed by initBodyList
+    actualFillMesh = targetMesh;
+  } else { // Earth or other planets
+    // Find the main group for this planet from the 'shapes' array
+    const planetGroup = shapes.find(s => s.userData && s.userData.name === bodyName);
+    if (planetGroup) {
+      if (bodyName === 'earth') {
+        const earthMoonData = moonOrbitData.get(planetGroup); // planetGroup is earthSystemGroup for Earth
+        if (earthMoonData && earthMoonData.earthSpinner && earthMoonData.earthSpinner.children[0]) {
+          actualFillMesh = earthMoonData.earthSpinner.children[0];
+        }
+      } else { // Other planets (Mars, Jupiter, etc.)
+        // planetGroup is likely the axialSpinGroup, its first child is the fillMesh's group, then fillMesh
+        if (planetGroup.children[0] && planetGroup.children[0].children[0]) {
+          actualFillMesh = planetGroup.children[0].children[0];
+        }
+      }
+    }
+  }
+
+  // If the above specific logic didn't find actualFillMesh, 
+  // but targetMesh itself has geometry (e.g. initBodyList passed the fillMesh directly)
+  if (!actualFillMesh && targetMesh && targetMesh.geometry && targetMesh.geometry.parameters) {
+    // console.log(`  actualFillMesh not found via specific logic for ${bodyName}. Using targetMesh itself as actualFillMesh.`);
+    actualFillMesh = targetMesh;
+  }
+
+  let currentVisualRadius = 0.1; // Default to a small positive radius
+
+  if (actualFillMesh && actualFillMesh.geometry && actualFillMesh.geometry.parameters && 
+      typeof actualFillMesh.geometry.parameters.radius === 'number' && 
+      actualFillMesh.scale && typeof actualFillMesh.scale.x === 'number') {
+    const geomRadius = actualFillMesh.geometry.parameters.radius;
+    const scaleX = actualFillMesh.scale.x;
+    currentVisualRadius = geomRadius * scaleX;
+    // console.log(`  For ${bodyName}: Determined actualFillMesh. geomRadius=${geomRadius.toFixed(4)}, scaleX=${scaleX.toFixed(4)}, visualRadius=${currentVisualRadius.toFixed(4)}`);
+  } else {
+    // console.warn(`  Could not determine currentVisualRadius from actualFillMesh for ${bodyName}. Mesh:`, actualFillMesh);
+    // Fallback to original base sizes (these are unscaled, so less accurate for camera offset if body is scaled)
+    if (bodyName === 'sun') {
+      currentVisualRadius = sunBaseSize;
+    } else if (isMoon) {
+      currentVisualRadius = planetBaseSizes.moon || 0.25; // planetBaseSizes.moon is unscaled radius
+    } else if (planetBaseSizes[bodyName]) {
+      currentVisualRadius = planetBaseSizes[bodyName];
+    } else {
+      // console.log(`  Using absolute default radius 0.1 for ${bodyName}`);
+      currentVisualRadius = 0.1; // Absolute fallback if no info
+    }
+    // console.log(`  Using fallback/original radius for ${bodyName}: ${currentVisualRadius.toFixed(4)}`);
+  }
+  
+  const baseSizeForOffset = Math.max(0.05, currentVisualRadius || 0.05); // Ensure a minimum size
+  console.log(`  Final baseSizeForOffset for ${bodyName}: ${baseSizeForOffset.toFixed(4)} (current visual radius)`);
 
   cc.startFlyToAnimation({
     lookAtTargetPoint: targetWorldPosition,
-    meshToFollowAfterAnimation: targetMesh,
-    baseSizeForOffset: baseSizeForOffset
+    meshToFollowAfterAnimation: targetMesh, // This is the mesh the camera will actually follow
+    baseSizeForOffset: baseSizeForOffset    // This is our calculated current visual radius of the body
   });
 };
 
@@ -299,3 +346,113 @@ initCamera({
 });
 
 window.getScene = getScene;
+
+const scalePlanetsButton = document.getElementById('scalePlanetsButton');
+if (scalePlanetsButton) {
+  scalePlanetsButton.addEventListener('click', () => {
+    console.log("Scale Planets button clicked");
+
+    const newRelativeDiameters = {
+      sun: 1.0, mercury: 0.20, venus: 0.25, earth: 0.28, mars: 0.22,
+      jupiter: 0.40, saturn: 0.38, uranus: 0.32, neptune: 0.32,
+    };
+    const newRelativeOrbitRadii = {
+      mercury: 2.0, venus: 3.0, earth: 4.0, mars: 5.0,
+      jupiter: 7.0, saturn: 9.0, uranus: 11.0, neptune: 13.0,
+    };
+
+    const sunPlanetGroup = getSunMesh(); // This is the planetGroup for the Sun
+    if (!sunPlanetGroup || !sunPlanetGroup.children[0] || !sunPlanetGroup.children[0].children[0]) {
+        console.error("Sun mesh structure not found as expected.");
+        return;
+    }
+    const sunFillMesh = sunPlanetGroup.children[0].children[0]; // Sun's axialSpinGroup -> fillMesh
+    
+    const sunOriginalBaseRadius = sunBaseSize; // From solarSystem.js (should be 1.0)
+    const currentSunScaleFactor = sunFillMesh.scale.x;
+    const currentSunDisplayRadius = sunOriginalBaseRadius * currentSunScaleFactor;
+
+    console.log(`Sun Base Radius: ${sunOriginalBaseRadius}, Current Sun Scale: ${currentSunScaleFactor}, Current Sun Display Radius: ${currentSunDisplayRadius}`);
+
+    shapes.forEach(planetGroup => {
+      const planetName = planetGroup.userData ? planetGroup.userData.name : null;
+      if (!planetName || !newRelativeDiameters[planetName]) {
+        console.log(`Skipping ${planetName || 'Unknown Planet'} as it's not in newRelativeDiameters`);
+        return; // Skip if not in our list (e.g., Pluto, Moon, or if userData is missing)
+      }
+
+      let planetFillMesh;
+      const originalPlanetBaseRadius = planetBaseSizes[planetName];
+
+      if (!originalPlanetBaseRadius) {
+          console.warn(`Original base radius for ${planetName} not found in planetBaseSizes. Skipping size update.`);
+          return; // Cannot calculate new scale without original base size
+      }
+
+      if (planetName === 'earth') {
+        const earthMoonData = moonOrbitData.get(planetGroup); // planetGroup for Earth is earthSystemGroup
+        if (earthMoonData && earthMoonData.earthSpinner && earthMoonData.earthSpinner.children[0]) {
+          planetFillMesh = earthMoonData.earthSpinner.children[0]; // Actual Earth mesh
+           // Note: Moon is not in newRelativeDiameters, so it won't be processed by this loop for size.
+        } else {
+          console.error('Earth mesh structure not found for scaling.');
+          return;
+        }
+      } else if (planetName === 'sun') {
+        planetFillMesh = sunFillMesh; // Already got this
+      } else {
+        // For other planets, planetGroup -> axialSpinGroup -> fillMesh
+        if (planetGroup.children[0] && planetGroup.children[0].children[0]) {
+          planetFillMesh = planetGroup.children[0].children[0];
+        } else {
+          console.error(`Mesh structure for ${planetName} not found as expected.`);
+          return;
+        }
+      }
+      
+      // Update Size
+      const newTargetPlanetRadius = newRelativeDiameters[planetName] * currentSunDisplayRadius;
+      const newPlanetScaleFactor = originalPlanetBaseRadius !== 0 ? newTargetPlanetRadius / originalPlanetBaseRadius : 0;
+      
+      console.log(`Planet: ${planetName}, Original Base: ${originalPlanetBaseRadius}, New Target Radius: ${newTargetPlanetRadius}, New Scale Factor: ${newPlanetScaleFactor}`);
+      
+      if (planetFillMesh) {
+        planetFillMesh.scale.set(newPlanetScaleFactor, newPlanetScaleFactor, newPlanetScaleFactor);
+      } else {
+        console.warn(`Could not find fill mesh for ${planetName} to apply scale.`);
+      }
+
+      // Update Orbit Radius (if not Sun and in the orbit list)
+      if (planetName !== 'sun' && newRelativeOrbitRadii[planetName]) {
+        const orbitParams = planetOrbitData.get(planetGroup);
+        if (orbitParams) {
+          const newTargetOrbitSemiMajorAxis = newRelativeOrbitRadii[planetName] * currentSunDisplayRadius;
+          console.log(`Planet: ${planetName}, New Orbit Radius (a): ${newTargetOrbitSemiMajorAxis}`);
+          orbitParams.a = newTargetOrbitSemiMajorAxis;
+
+          // Update Orbit Line
+          if (orbitParams.orbitLineMesh) {
+            solarSystemGroup.remove(orbitParams.orbitLineMesh);
+            if (orbitParams.orbitLineMesh.geometry) orbitParams.orbitLineMesh.geometry.dispose();
+            if (orbitParams.orbitLineMesh.material) orbitParams.orbitLineMesh.material.dispose();
+          }
+          
+          // Ensure all params for createOrbitLine are valid, esp. eccentricity
+          const e = orbitParams.e !== undefined ? orbitParams.e : 0;
+          const i = orbitParams.i !== undefined ? orbitParams.i : 0;
+          const node = orbitParams.node !== undefined ? orbitParams.node : 0;
+          const peri = orbitParams.peri !== undefined ? orbitParams.peri : 0;
+
+          const newOrbitLine = createOrbitLine(orbitParams.a, e, i, node, peri, 128, 0xffffff, 0.2);
+          orbitParams.orbitLineMesh = newOrbitLine;
+          solarSystemGroup.add(newOrbitLine);
+        } else {
+          console.warn(`Orbit params not found for ${planetName} to update orbit radius.`);
+        }
+      }
+    });
+    console.log("Planet scaling and orbit adjustment finished.");
+  });
+} else {
+  console.error("Scale Planets button not found in the DOM.");
+}
