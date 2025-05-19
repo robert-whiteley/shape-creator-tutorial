@@ -350,7 +350,7 @@ window.getScene = getScene;
 const scalePlanetsButton = document.getElementById('scalePlanetsButton');
 if (scalePlanetsButton) {
   scalePlanetsButton.addEventListener('click', () => {
-    console.log("Scale Planets button clicked for camera adjustment pass 3.");
+    console.log("Scale Planets button clicked, now including Pluto & Moon scaling.");
 
     // --- Capture initial state for camera scaling ---
     const sunPlanetGroupForInit = getSunMesh(); 
@@ -360,78 +360,81 @@ if (scalePlanetsButton) {
         initialSunVisualRadiusForCameraScaling = sunFillMeshForInit.geometry.parameters.radius * sunFillMeshForInit.scale.x;
     }
     if (initialSunVisualRadiusForCameraScaling === 0) {
-        console.warn("Initial sun visual radius is 0, sun-based camera scaling might be problematic.");
         initialSunVisualRadiusForCameraScaling = 1.0; 
     }
-
-    let oldEarthOrbitRadius = -1; // Initialize to an invalid value
+    let oldEarthOrbitRadius = -1;
     const earthGroupForScaling = shapes.find(s => s.userData && s.userData.name === 'earth');
     if (earthGroupForScaling) {
         const earthOrbitParams = planetOrbitData.get(earthGroupForScaling);
         if (earthOrbitParams && typeof earthOrbitParams.a === 'number') {
             oldEarthOrbitRadius = earthOrbitParams.a;
-            console.log("Captured oldEarthOrbitRadius:", oldEarthOrbitRadius);
         }
     }
-    // --- End capture initial state ---
 
     const newRelativeDiameters = {
       sun: 1.0, mercury: 0.20, venus: 0.25, earth: 0.28, mars: 0.22,
       jupiter: 0.40, saturn: 0.38, uranus: 0.32, neptune: 0.32,
+      pluto: 0.10, moon: 0.08, // Added Pluto and Moon
     };
-    const newRelativeOrbitRadii = {
+    const newRelativeOrbitRadii = { // Orbits around Sun, relative to currentSunDisplayRadius as 1 unit
       mercury: 2.0, venus: 3.0, earth: 4.0, mars: 5.0,
       jupiter: 7.0, saturn: 9.0, uranus: 11.0, neptune: 13.0,
+      pluto: 15.0, // Added Pluto
     };
 
     const sunPlanetGroup = getSunMesh(); 
     if (!sunPlanetGroup || !sunPlanetGroup.children[0] || !sunPlanetGroup.children[0].children[0]) {
-        console.error("Sun mesh structure not found as expected.");
-        return;
+        console.error("Sun mesh structure not found as expected."); return;
     }
     const sunFillMesh = sunPlanetGroup.children[0].children[0]; 
-    
     const sunOriginalBaseRadius = sunBaseSize; 
     const currentSunScaleFactorBeforeButton = sunFillMesh.scale.x; 
     const currentSunDisplayRadius = sunOriginalBaseRadius * currentSunScaleFactorBeforeButton; 
-
-    console.log(`Sun Base: ${sunOriginalBaseRadius}, ScaleBeforeButton: ${currentSunScaleFactorBeforeButton}, NewRefRadius: ${currentSunDisplayRadius}`);
     if (currentSunDisplayRadius === 0) {
-        console.error("currentSunDisplayRadius is 0, cannot proceed.");
-        return;
+        console.error("currentSunDisplayRadius is 0, cannot proceed."); return;
     }
 
     shapes.forEach(planetGroup => {
       const planetName = planetGroup.userData ? planetGroup.userData.name : null;
-      if (!planetName || !newRelativeDiameters[planetName]) {
-        return; 
+      // Moon is handled specially within Earth's case, so skip main processing for 'moon' here
+      if (!planetName || (!newRelativeDiameters[planetName] && planetName !== 'earth') || planetName === 'moon') { 
+          if (planetName === 'moon') {
+            // console.log("Skipping Moon in main loop, handled with Earth.");
+          } else if (!newRelativeDiameters[planetName]) {
+            // console.log(`Skipping ${planetName || 'Unknown Planet'} as it's not in newRelativeDiameters for direct scaling.`);
+          }
+          return; 
       }
+
       let planetFillMeshToScale;
       const originalPlanetBaseRadius = planetBaseSizes[planetName];
-      if (!originalPlanetBaseRadius && originalPlanetBaseRadius !==0) { // Allow 0 for sun if it makes sense elsewhere
+      if (typeof originalPlanetBaseRadius !== 'number') { 
           console.warn(`Original base radius for ${planetName} not found or invalid. Skipping size update.`);
           return; 
       }
+      
       if (planetName === 'earth') {
-        const earthMoonData = moonOrbitData.get(planetGroup); 
+        const earthMoonData = moonOrbitData.get(planetGroup); // planetGroup for Earth is earthSystemGroup
         if (earthMoonData && earthMoonData.earthSpinner && earthMoonData.earthSpinner.children[0]) {
-          planetFillMeshToScale = earthMoonData.earthSpinner.children[0]; 
+          planetFillMeshToScale = earthMoonData.earthSpinner.children[0]; // Earth's mesh
         } else { console.error('Earth mesh structure not found for scaling.'); return; }
       } else if (planetName === 'sun') {
         planetFillMeshToScale = sunFillMesh; 
-      } else {
+      } else { // Other planets (Mercury, Venus, Mars, Jupiter, Saturn, Uranus, Neptune, Pluto)
         if (planetGroup.children[0] && planetGroup.children[0].children[0]) {
           planetFillMeshToScale = planetGroup.children[0].children[0];
         } else { console.error(`Mesh structure for ${planetName} not found as expected.`); return; }
       }
       
       const newTargetPlanetRadius = newRelativeDiameters[planetName] * currentSunDisplayRadius;
-      const newPlanetScaleFactor = (originalPlanetBaseRadius !== 0) ? (newTargetPlanetRadius / originalPlanetBaseRadius) : (newRelativeDiameters[planetName] === 0 ? 0 : 1); // Handle division by zero and target zero radius
+      const newPlanetScaleFactor = (originalPlanetBaseRadius !== 0) ? (newTargetPlanetRadius / originalPlanetBaseRadius) : (newRelativeDiameters[planetName] === 0 ? 0 : 1);
       
       if (planetFillMeshToScale) {
         planetFillMeshToScale.scale.set(newPlanetScaleFactor, newPlanetScaleFactor, newPlanetScaleFactor);
+        console.log(`Scaled ${planetName} by ${newPlanetScaleFactor.toFixed(3)}`);
       }
 
+      // Orbit around Sun (for planets including Pluto)
       if (planetName !== 'sun' && newRelativeOrbitRadii[planetName]) {
         const orbitParams = planetOrbitData.get(planetGroup);
         if (orbitParams) {
@@ -449,25 +452,59 @@ if (scalePlanetsButton) {
           const newOrbitLine = createOrbitLine(orbitParams.a, e, i, node, peri, 128, 0xffffff, 0.2);
           orbitParams.orbitLineMesh = newOrbitLine;
           solarSystemGroup.add(newOrbitLine);
+          console.log(`Rescaled orbit for ${planetName} to a: ${newTargetOrbitSemiMajorAxis.toFixed(2)}`);
         } 
       }
+
+      // --- Special handling for Moon if current planet is Earth ---
+      if (planetName === 'earth') {
+        const earthDataForMoon = moonOrbitData.get(planetGroup); // planetGroup is earthSystemGroup
+        if (earthDataForMoon && earthDataForMoon.moon && earthDataForMoon.pivot && earthDataForMoon.orbitLine) {
+          const moonMesh = earthDataForMoon.moon;
+          const moonPivot = earthDataForMoon.pivot;
+          const oldMoonOrbitLine = earthDataForMoon.orbitLine;
+          
+          // 1. Scale Moon size
+          const moonOriginalBaseRadius = planetBaseSizes['moon'];
+          if (typeof moonOriginalBaseRadius === 'number' && newRelativeDiameters['moon']) {
+            const newTargetMoonRadius = newRelativeDiameters['moon'] * currentSunDisplayRadius;
+            const newMoonScaleFactor = (moonOriginalBaseRadius !== 0) ? (newTargetMoonRadius / moonOriginalBaseRadius) : (newRelativeDiameters['moon'] === 0 ? 0 : 1);
+            moonMesh.scale.set(newMoonScaleFactor, newMoonScaleFactor, newMoonScaleFactor);
+            console.log(`Scaled Moon by ${newMoonScaleFactor.toFixed(3)}`);
+          } else {
+            console.warn("Could not scale Moon: missing base radius or relative diameter for Moon.");
+          }
+
+          // 2. Scale Moon orbit around Earth
+          const newMoonOrbitRadiusAroundEarth = 0.42 * currentSunDisplayRadius; // 1.5 * Earth's new diameter (0.28 * currentSunDisplayRadius)
+          moonPivot.position.x = newMoonOrbitRadiusAroundEarth; // Assuming x is the distance component for moonPivot
+          earthDataForMoon.initialMoonDistance = newMoonOrbitRadiusAroundEarth; // Update for consistency if used elsewhere
+          
+          // 3. Redraw Moon's orbit line
+          planetGroup.remove(oldMoonOrbitLine); // Orbit line is child of Earth's group
+          if (oldMoonOrbitLine.geometry) oldMoonOrbitLine.geometry.dispose();
+          if (oldMoonOrbitLine.material) oldMoonOrbitLine.material.dispose();
+          
+          const newMoonLine = createOrbitLine(newMoonOrbitRadiusAroundEarth, 0, 0, 0, 0, 64, 0x888888, 0.3);
+          planetGroup.add(newMoonLine);
+          earthDataForMoon.orbitLine = newMoonLine; // Update the reference
+          console.log(`Rescaled Moon orbit around Earth to radius: ${newMoonOrbitRadiusAroundEarth.toFixed(2)}`);
+        } else {
+          console.warn("Could not find all necessary Moon data/objects when scaling Earth.");
+        }
+      }
     });
-    console.log("Planet scaling and orbit adjustment finished.");
+    console.log("Planet, Pluto, and Moon scaling and orbit adjustments finished.");
 
     // --- Adjust camera position ---
     const RELATIVE_VIEW_DISTANCE_MULTIPLIER = 2.5; 
     const cam = getCamera();
     const trackedInfo = cameraController.getTrackedBodyInfo();
-
     if (trackedInfo && trackedInfo.mesh && cam && trackedInfo.worldOrientedNormalizedViewDir) {
         const bodyName = trackedInfo.mesh.userData ? trackedInfo.mesh.userData.name : null;
-        if (!bodyName) {
-            console.warn("Tracked mesh has no name for precise camera jump.");
-            return;
-        }
+        if (!bodyName) { return; }
         const isMoon = bodyName === 'moon';
         let actualFillMeshOfTrackedBody;
-        
         if (bodyName === 'sun') { actualFillMeshOfTrackedBody = getSunMesh()?.children[0]?.children[0]; }
         else if (isMoon) { actualFillMeshOfTrackedBody = trackedInfo.mesh; }
         else {
@@ -477,57 +514,36 @@ if (scalePlanetsButton) {
                 else { actualFillMeshOfTrackedBody = pg.children[0]?.children[0]; }
             }
         }
-
         if (actualFillMeshOfTrackedBody && actualFillMeshOfTrackedBody.geometry && actualFillMeshOfTrackedBody.geometry.parameters) {
             const newActualVisualRadius = actualFillMeshOfTrackedBody.geometry.parameters.radius * actualFillMeshOfTrackedBody.scale.x;
             trackedInfo.baseSize = newActualVisualRadius; 
-
             const trackedBodyWorldPosition = new THREE.Vector3();
             actualFillMeshOfTrackedBody.getWorldPosition(trackedBodyWorldPosition);
-            
             const globalScaleSliderValue = parseInt(scaleSlider.value) || 1;
             const effectiveSizeForOffset = newActualVisualRadius * globalScaleSliderValue; 
             const newOffsetDistance = effectiveSizeForOffset * RELATIVE_VIEW_DISTANCE_MULTIPLIER;
-            
             const cameraDirection = trackedInfo.worldOrientedNormalizedViewDir.clone(); 
             const desiredCameraWorldPos = new THREE.Vector3().copy(trackedBodyWorldPosition).addScaledVector(cameraDirection, newOffsetDistance);
-
-            console.log(`Tracked ${bodyName}: Jumping camera. New baseSize for controller: ${newActualVisualRadius.toFixed(4)}`);
-
-            if (cam.parent) {
-                cam.parent.worldToLocal(cam.position.copy(desiredCameraWorldPos));
-            } else {
-                cam.position.copy(desiredCameraWorldPos);
-            }
+            if (cam.parent) { cam.parent.worldToLocal(cam.position.copy(desiredCameraWorldPos)); }
+            else { cam.position.copy(desiredCameraWorldPos); }
             cam.updateMatrixWorld(true);
             cam.lookAt(trackedBodyWorldPosition);
-
-        } else {
-            console.warn(`Could not perform precise camera jump for tracked body ${bodyName}. Missing details. ActualFillMesh:`, actualFillMeshOfTrackedBody);
-        }
-    } else if (cam) { // General view and camera exists
+        } 
+    } else if (cam) { 
         let viewScaleFactor = 1.0;
-        if (earthGroupForScaling && typeof oldEarthOrbitRadius === 'number' && oldEarthOrbitRadius > 0.0001) { // Check oldEarthOrbitRadius is valid
+        if (earthGroupForScaling && typeof oldEarthOrbitRadius === 'number' && oldEarthOrbitRadius > 0.0001) { 
             const newEarthOrbitParams = planetOrbitData.get(earthGroupForScaling);
             if (newEarthOrbitParams && typeof newEarthOrbitParams.a === 'number') {
                 const newEarthOrbitRadius = newEarthOrbitParams.a;
                 viewScaleFactor = newEarthOrbitRadius / oldEarthOrbitRadius;
-                console.log(`General view: Scaling by Earth orbit change: ${newEarthOrbitRadius.toFixed(2)} / ${oldEarthOrbitRadius.toFixed(2)} = ${viewScaleFactor.toFixed(4)}`);
             } else {
-                 console.warn("General view: New Earth orbit radius not available for scaling camera. Using Sun fallback.");
-                 viewScaleFactor = currentSunDisplayRadius / initialSunVisualRadiusForCameraScaling; // Fallback
+                 viewScaleFactor = currentSunDisplayRadius / initialSunVisualRadiusForCameraScaling; 
             }
         } else {
-            viewScaleFactor = currentSunDisplayRadius / initialSunVisualRadiusForCameraScaling; // Fallback if Earth data was bad from start
-            console.log(`General view: Fallback scaling by Sun visual change: ${currentSunDisplayRadius.toFixed(2)} / ${initialSunVisualRadiusForCameraScaling.toFixed(2)} = ${viewScaleFactor.toFixed(4)}`);
+            viewScaleFactor = currentSunDisplayRadius / initialSunVisualRadiusForCameraScaling; 
         }
-        
         if (isFinite(viewScaleFactor) && viewScaleFactor > 0.0001 && Math.abs(viewScaleFactor - 1.0) > 0.0001) { 
-            const oldYawPosition = yawObject.position.clone();
             yawObject.position.multiplyScalar(viewScaleFactor);
-            console.log(`General view camera scaled by factor ${viewScaleFactor.toFixed(4)}. From ${oldYawPosition.x.toFixed(2)},${oldYawPosition.y.toFixed(2)},${oldYawPosition.z.toFixed(2)} to ${yawObject.position.x.toFixed(2)},${yawObject.position.y.toFixed(2)},${yawObject.position.z.toFixed(2)}`);
-        } else {
-            console.log(`General view camera: No significant scaling applied. Factor: ${viewScaleFactor.toFixed(4)} (or invalid)`);
         }
     }
   });
