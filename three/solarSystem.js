@@ -4,7 +4,7 @@
 // Assumes THREE is globally available or imported elsewhere
 
 export const planetData = [
-  { name: 'sun', texture: 'textures/sun.jpg', size: 1.2 },
+  { name: 'sun', texture: 'textures/sun.jpg', size: 1.0 },
   { name: 'mercury', texture: 'textures/mercury.jpg', size: 0.25 },
   { name: 'venus', texture: 'textures/venus.jpg', size: 0.4 },
   { name: 'earth', texture: 'textures/earth.jpg', size: 0.5 },
@@ -238,7 +238,7 @@ export function createPlanet({ texture, size, name }, position, shapes) {
       console.error("Moon data not found in planetData!");
       // Fallback or error handling
     }
-    const moonSize = moonData ? moonData.size : 0.136; // Use moonData.size, fallback to old value
+    const moonSize = moonData ? moonData.size : 0.136; // Use moonData.size, fallback to original 0.136
     const moonTexturePath = moonData ? moonData.texture : 'textures/moon.jpg'; // Use moonData.texture
 
     const moonPivot = new THREE.Group(); // Moon's orbital pivot
@@ -249,7 +249,7 @@ export function createPlanet({ texture, size, name }, position, shapes) {
     moonMesh.userData = { name: 'moon' };
     moonMesh.castShadow = true;
     moonMesh.receiveShadow = true;
-    moonMesh.position.set(12.0, 0, 0); // Position moon relative to its pivot
+    moonMesh.position.set(12.0, 0, 0); // Position moon relative to its pivot (original value)
     moonPivot.add(moonMesh);
     earthSystemGroup.add(moonPivot); // Add moon's pivot to the main system group
 
@@ -259,7 +259,7 @@ export function createPlanet({ texture, size, name }, position, shapes) {
       earthSpinner: axialSpinGroup // Corrected: Store the new axialSpinGroup as earthSpinner
     });
 
-    const moonOrbitLine = createOrbitLine(12.0, 0, 0, 0, 0, 128, 0xffffff, 0.3); // Moon orbit assumed in Earth's orbital plane for now (0 inclination relative to it)
+    const moonOrbitLine = createOrbitLine(12.0, 0, 0, 0, 0, 128, 0xffffff, 0.3); // Moon orbit (original value)
     earthSystemGroup.add(moonOrbitLine); // Add orbit line to the main system group
 
     earthSystemGroup.position.copy(position); // Position the whole system

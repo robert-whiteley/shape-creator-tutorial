@@ -234,9 +234,9 @@ const handleBodyClick = (targetMesh, bodyName, isMoon, cc) => {
   const targetWorldPosition = new THREE.Vector3();
   targetMesh.getWorldPosition(targetWorldPosition);
 
-  let baseSizeForOffset = 0.5; 
+  let baseSizeForOffset = sunBaseSize || 1.0; // Remove arbitrary 1.2 fallback, use 1.0 as minimal default
   if (bodyName === 'sun') {
-    baseSizeForOffset = sunBaseSize || 1.2; 
+    baseSizeForOffset = sunBaseSize || 1.0; 
   } else if (isMoon && targetMesh.geometry && targetMesh.geometry.parameters) {
     baseSizeForOffset = targetMesh.geometry.parameters.radius || 0.5;
   } else if (planetBaseSizes && planetBaseSizes[bodyName]) {

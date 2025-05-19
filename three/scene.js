@@ -3,7 +3,9 @@
 
 // Assumes THREE is globally available or imported elsewhere
 
-export const MODEL_SCALE_FACTOR = 1.2 / 696340; // Same as PLANET_SCALE. Used for orbits and planet sizes.
+export const MODEL_SCALE_FACTOR = 1.0 / 696340; // Defines the scaling from real astronomical units (km) to scene units.
+                                             // Based on the Sun's visual radius in the scene (1.0 unit) and its actual radius (696340 km).
+                                             // Used for orbits and planet sizes.
 
 let scene, camera, renderer;
 let lastAnimationTime = Date.now();
@@ -47,7 +49,7 @@ export function initThree({
   const ambientLight = new THREE.AmbientLight(0xffffff, 0.3);
   scene.add(ambientLight);
   // Add a shadow-casting PointLight at the sun's position
-  const sunLight = new THREE.PointLight(0xffffff, 1.2, 0); // Set range to 0 for infinite
+  const sunLight = new THREE.PointLight(0xffffff, 1.0, 0); // Set range to 0 for infinite.
   sunLight.position.set(0, 0, 0); // Sun is at the origin
   sunLight.castShadow = true;
   sunLight.shadow.mapSize.width = 1024; // Consider increasing for better shadow quality if needed
