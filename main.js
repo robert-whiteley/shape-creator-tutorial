@@ -304,7 +304,77 @@ function captureS0State() {
   // Initialize s1_params as a deep copy of s0_params
   s1_params = JSON.parse(JSON.stringify(s0_params));
   console.log("S0 State Captured:", s0_params);
-  console.log("S1 State Initialized:", s1_params);
+  console.log("S1 State Initialized (as copy of S0):", s1_params);
+}
+
+const TARGET_S1_SUN_SCALE_FACTOR = 20.0; // Sun is 20x its base size in S1 visuals.
+
+function defineS1Parameters() {
+  console.log("Defining S1 artistic parameters...");
+
+  const newRelativeDiameters = {
+    sun: 1.0, mercury: 0.20, venus: 0.25, earth: 0.28, mars: 0.22,
+    jupiter: 0.40, saturn: 0.38, uranus: 0.32, neptune: 0.32,
+    pluto: 0.10, moon: 0.08,
+  };
+  const newRelativeOrbitRadii = {
+    mercury: 2.0, venus: 3.0, earth: 4.0, mars: 5.0,
+    jupiter: 7.0, saturn: 9.0, uranus: 11.0, neptune: 13.0,
+    pluto: 15.0,
+  };
+
+  const sunGroup = getSunMesh();
+  const sunName = sunGroup?.userData?.name || 'sun';
+
+  if (!s1_params[sunName]) s1_params[sunName] = {};
+  s1_params[sunName].meshScaleFactor = TARGET_S1_SUN_SCALE_FACTOR;
+  currentSunDisplayRadiusForS1Calculation = sunBaseSize * s1_params[sunName].meshScaleFactor;
+  if (currentSunDisplayRadiusForS1Calculation === 0) {
+      console.error("S1 currentSunDisplayRadius is 0, cannot proceed."); 
+      // Fallback to prevent division by zero, though this indicates a larger issue
+      currentSunDisplayRadiusForS1Calculation = sunBaseSize * TARGET_S1_SUN_SCALE_FACTOR || 1.0;
+      if (currentSunDisplayRadiusForS1Calculation === 0) currentSunDisplayRadiusForS1Calculation = 1.0;
+  }
+
+  shapes.forEach(planetGroup => {
+    const name = planetGroup.userData.name;
+    if (!name || name === sunName) return;
+
+    if (!s1_params[name]) s1_params[name] = {};
+    const s0p_orbit = s0_params[name]; 
+
+    if (newRelativeDiameters[name] && planetBaseSizes[name] && planetBaseSizes[name] !== 0) {
+      const newTargetPlanetRadiusS1 = newRelativeDiameters[name] * currentSunDisplayRadiusForS1Calculation;
+      s1_params[name].meshScaleFactor = newTargetPlanetRadiusS1 / planetBaseSizes[name];
+    } else {
+      s1_params[name].meshScaleFactor = s0_params[name]?.meshScaleFactor || 1.0;
+      console.warn(`Missing data or zero base size for S1 mesh scale for ${name}, using S0 scale.`);
+    }
+
+    if (newRelativeOrbitRadii[name]) {
+      s1_params[name].orbitA = newRelativeOrbitRadii[name] * currentSunDisplayRadiusForS1Calculation;
+    } else {
+      s1_params[name].orbitA = s0_params[name]?.orbitA || 0;
+      console.warn(`Missing data for S1 orbit radius for ${name}, using S0 orbit.`);
+    }
+    s1_params[name].e = s0p_orbit?.e;
+    s1_params[name].i = s0p_orbit?.i;
+    s1_params[name].node = s0p_orbit?.node;
+    s1_params[name].peri = s0p_orbit?.peri;
+
+    if (name === 'earth') {
+      if (!s1_params.moon) s1_params.moon = {};
+      if (newRelativeDiameters.moon && planetBaseSizes.moon && planetBaseSizes.moon !== 0) {
+        const newTargetMoonRadiusS1 = newRelativeDiameters.moon * currentSunDisplayRadiusForS1Calculation;
+        s1_params.moon.meshScaleFactor = newTargetMoonRadiusS1 / planetBaseSizes.moon;
+      } else {
+        s1_params.moon.meshScaleFactor = s0_params.moon?.meshScaleFactor || 1.0;
+        console.warn("Missing data or zero base size for S1 Moon mesh scale, using S0 scale.");
+      }
+      s1_params.moon.orbitA_around_earth = 0.42 * currentSunDisplayRadiusForS1Calculation;
+    }
+  });
+  console.log("S1 artistic parameters defined:", JSON.parse(JSON.stringify(s1_params)));
 }
 
 // Function to apply interpolated scale to all bodies and orbits
@@ -403,6 +473,8 @@ function applyInterpolatedScale(alpha) {
 
 // Call captureS0State after solar system is initialized by initThree
 captureS0State();
+// Define S1 parameters after S0 is captured
+defineS1Parameters(); 
 // Apply initial scale (S0)
 applyInterpolatedScale(0.0);
 if (interpolationScaleSlider) {
@@ -533,106 +605,3 @@ initCamera({
 });
 
 window.getScene = getScene;
-
-const TARGET_S1_SUN_SCALE_FACTOR = 20.0; // Example: Sun is 20x its base size in S1 visuals.
-                                         // This factor determines the S1 sun size, which then acts as a reference.
-
-// handleBodyClick function - accepts 'cc' (cameraController instance) as a parameter
-// ... (this function remains, ensure it's not inside the slider listener)
-
-// --- Sun Initialization for S1 calculation ---
-// let initialSunVisualRadiusForCameraScaling = 1.0; // This was for camera adjustment post-button
-// The important part for S1 calculation is sunBaseSize for the true S0 radius.
-
-const scalePlanetsButton = document.getElementById('scalePlanetsButton');
-if (scalePlanetsButton) {
-  scalePlanetsButton.addEventListener('click', () => {
-    console.log("'Apply Artistic Scale' button clicked. Defining S1 state...");
-
-    // These are the artistic proportions for S1 state
-    const newRelativeDiameters = {
-      sun: 1.0, // Sun's S1 visual diameter becomes the reference unit for other S1 diameters
-      mercury: 0.20, venus: 0.25, earth: 0.28, mars: 0.22,
-      jupiter: 0.40, saturn: 0.38, uranus: 0.32, neptune: 0.32,
-      pluto: 0.10, moon: 0.08,
-    };
-    const newRelativeOrbitRadii = { // Orbits around Sun, relative to S1 Sun's visual radius as 1 unit
-      mercury: 2.0, venus: 3.0, earth: 4.0, mars: 5.0,
-      jupiter: 7.0, saturn: 9.0, uranus: 11.0, neptune: 13.0,
-      pluto: 15.0,
-    };
-
-    const sunGroup = getSunMesh();
-    const sunName = sunGroup?.userData?.name || 'sun';
-
-    // 1. Determine Sun's S1 scale and the resulting S1 display radius for reference
-    if (!s1_params[sunName]) s1_params[sunName] = {};
-    s1_params[sunName].meshScaleFactor = TARGET_S1_SUN_SCALE_FACTOR;
-    // currentSunDisplayRadiusForS1Calculation is the visual radius of the Sun in S1 state
-    currentSunDisplayRadiusForS1Calculation = sunBaseSize * s1_params[sunName].meshScaleFactor;
-    if (currentSunDisplayRadiusForS1Calculation === 0) {
-        console.error("S1 currentSunDisplayRadius is 0, cannot proceed."); return;
-    }
-
-    // 2. Calculate S1 parameters for Planets
-    shapes.forEach(planetGroup => {
-      const name = planetGroup.userData.name;
-      if (!name || name === sunName) return; // Sun handled, skip if no name
-
-      if (!s1_params[name]) s1_params[name] = {};
-      const s0p_orbit = s0_params[name]; // For inheriting e, i, node, peri
-
-      // S1 Planet Mesh Scale Factor
-      if (newRelativeDiameters[name] && planetBaseSizes[name]) {
-        const newTargetPlanetRadiusS1 = newRelativeDiameters[name] * currentSunDisplayRadiusForS1Calculation;
-        s1_params[name].meshScaleFactor = newTargetPlanetRadiusS1 / planetBaseSizes[name];
-      } else {
-        s1_params[name].meshScaleFactor = s0_params[name]?.meshScaleFactor || 1.0; // Fallback to S0
-        console.warn(`Missing data for S1 mesh scale for ${name}, using S0 scale.`);
-      }
-
-      // S1 Planet Orbit Semi-Major Axis
-      if (newRelativeOrbitRadii[name]) {
-        s1_params[name].orbitA = newRelativeOrbitRadii[name] * currentSunDisplayRadiusForS1Calculation;
-      } else {
-        s1_params[name].orbitA = s0_params[name]?.orbitA || 0; // Fallback to S0
-        console.warn(`Missing data for S1 orbit radius for ${name}, using S0 orbit.`);
-      }
-      // Preserve other orbital elements from S0 for S1 orbits
-      s1_params[name].e = s0p_orbit?.e;
-      s1_params[name].i = s0p_orbit?.i;
-      s1_params[name].node = s0p_orbit?.node;
-      s1_params[name].peri = s0p_orbit?.peri;
-
-      // --- S1 for Moon (if current planet is Earth) ---
-      if (name === 'earth') {
-        if (!s1_params.moon) s1_params.moon = {};
-        
-        // S1 Moon Mesh Scale Factor
-        if (newRelativeDiameters.moon && planetBaseSizes.moon) {
-          const newTargetMoonRadiusS1 = newRelativeDiameters.moon * currentSunDisplayRadiusForS1Calculation;
-          s1_params.moon.meshScaleFactor = newTargetMoonRadiusS1 / planetBaseSizes.moon;
-        } else {
-          s1_params.moon.meshScaleFactor = s0_params.moon?.meshScaleFactor || 1.0; // Fallback
-          console.warn("Missing data for S1 Moon mesh scale, using S0 scale.");
-        }
-
-        // S1 Moon Orbit Radius around Earth
-        // Original logic: 0.42 * currentSunDisplayRadius (which is currentSunDisplayRadiusForS1Calculation here)
-        s1_params.moon.orbitA_around_earth = 0.42 * currentSunDisplayRadiusForS1Calculation;
-      }
-    });
-
-    console.log("S1 params defined:", JSON.parse(JSON.stringify(s1_params)));
-
-    // 3. Apply the S1 state and update slider
-    applyInterpolatedScale(1.0);
-    if (interpolationScaleSlider) {
-        interpolationScaleSlider.value = "1";
-    }
-    // interpolationScaleValue is updated by applyInterpolatedScale
-
-    // Old camera adjustment logic removed for now. 
-    // Camera will adjust based on tracked object's currentVisualScaleFactor.
-  });
-}
