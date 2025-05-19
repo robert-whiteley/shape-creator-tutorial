@@ -4,17 +4,17 @@
 // Assumes THREE is globally available or imported elsewhere
 
 export const planetData = [
-  { name: 'sun', texture: 'textures/sun.jpg', size: 1.0 },
-  { name: 'mercury', texture: 'textures/mercury.jpg', size: 0.25 },
-  { name: 'venus', texture: 'textures/venus.jpg', size: 0.4 },
-  { name: 'earth', texture: 'textures/earth.jpg', size: 0.5 },
-  { name: 'moon', texture: 'textures/moon.jpg', size: 0.136 },
-  { name: 'mars', texture: 'textures/mars.jpg', size: 0.35 },
-  { name: 'jupiter', texture: 'textures/jupiter.jpg', size: 0.9 },
-  { name: 'saturn', texture: 'textures/saturn.jpg', size: 0.8 },
-  { name: 'uranus', texture: 'textures/uranus.jpg', size: 0.6 },
-  { name: 'neptune', texture: 'textures/neptune.jpg', size: 0.6 },
-  { name: 'pluto', texture: 'textures/pluto.jpg', size: 0.18 }
+  { name: 'sun', texture: 'textures/sun.jpg', size: 1.0 }, // Sun's radius: 696340 km. Scene size 1.0.
+  { name: 'mercury', texture: 'textures/mercury.jpg', size: 0.003503185 }, // Radius: 2439.5 km
+  { name: 'venus', texture: 'textures/venus.jpg', size: 0.008691036 },   // Radius: 6052 km
+  { name: 'earth', texture: 'textures/earth.jpg', size: 0.009159362 },   // Radius: 6378 km
+  { name: 'moon', texture: 'textures/moon.jpg', size: 0.002495084 },    // Radius: 1737.5 km
+  { name: 'mars', texture: 'textures/mars.jpg', size: 0.004876630 },     // Radius: 3396 km
+  { name: 'jupiter', texture: 'textures/jupiter.jpg', size: 0.1026679 },   // Radius: 71492 km
+  { name: 'saturn', texture: 'textures/saturn.jpg', size: 0.08655111 },  // Radius: 60268 km
+  { name: 'uranus', texture: 'textures/uranus.jpg', size: 0.03670408 },  // Radius: 25559 km
+  { name: 'neptune', texture: 'textures/neptune.jpg', size: 0.03556339 }, // Radius: 24764 km
+  { name: 'pluto', texture: 'textures/pluto.jpg', size: 0.00170599 }     // Radius: 1188 km
 ];
 
 // Create and export planetBaseSizes and sunBaseSize
