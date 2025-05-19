@@ -494,12 +494,23 @@ if (scalePlanetsButton) {
           earthDataForMoon.initialMoonDistance = newMoonOrbitRadiusAroundEarth; 
           
           // 3. Redraw Moon's orbit line
-          planetGroup.remove(oldMoonOrbitLine); // Orbit line is child of Earth's group
+          if (moonPivot) { // The orbit line is a child of moonPivot
+            moonPivot.remove(oldMoonOrbitLine);
+          } else {
+            console.warn("moonPivot not found for oldMoonOrbitLine removal during scaling. Trying planetGroup.");
+            planetGroup.remove(oldMoonOrbitLine); // Fallback, though less likely to be correct
+          }
+
           if (oldMoonOrbitLine.geometry) oldMoonOrbitLine.geometry.dispose();
           if (oldMoonOrbitLine.material) oldMoonOrbitLine.material.dispose();
           
           const newMoonLine = createOrbitLine(newMoonOrbitRadiusAroundEarth, 0, 0, 0, 0, 64, 0x888888, 0.3);
-          planetGroup.add(newMoonLine);
+          if (moonPivot) { // Add new line to moonPivot
+            moonPivot.add(newMoonLine);
+          } else {
+            console.warn("moonPivot not found for newMoonLine addition. Adding to planetGroup as fallback.");
+            planetGroup.add(newMoonLine); // Fallback
+          }
           earthDataForMoon.orbitLine = newMoonLine; // Update the reference
           console.log(`Rescaled Moon orbit around Earth to radius: ${newMoonOrbitRadiusAroundEarth.toFixed(2)}`);
         } else {
