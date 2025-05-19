@@ -1,6 +1,8 @@
 // three/solarSystem.js
 // Handles planet and solar system creation logic and helpers
 
+import { MODEL_SCALE_FACTOR } from './scene.js'; // CRITICAL: Import MODEL_SCALE_FACTOR
+
 // Assumes THREE is globally available or imported elsewhere
 
 export const planetData = [
@@ -249,18 +251,29 @@ export function createPlanet({ texture, size, name }, position, shapes) {
     moonMesh.userData = { name: 'moon' };
     moonMesh.castShadow = true;
     moonMesh.receiveShadow = true;
-    moonMesh.position.set(12.0, 0, 0); // Position moon relative to its pivot (original value)
-    moonPivot.add(moonMesh);
-    earthSystemGroup.add(moonPivot); // Add moon's pivot to the main system group
+    // moonMesh.position.set(12.0, 0, 0); // Remove this older hardcoded value if present
+    // earthSystemGroup.add(moonPivot); // This was re-added by model, ensure it's not duplicated later
+
+    // Set initial Moon position (distance from Earth) using REALISTIC scaling
+    const realMoonOrbitKm = 384400; // Average lunar orbit radius in km
+    const initialMoonDistance = realMoonOrbitKm * MODEL_SCALE_FACTOR; // Use imported MODEL_SCALE_FACTOR
+    console.log(`Realistic initialMoonDistance calculated: ${initialMoonDistance} (using imported MODEL_SCALE_FACTOR)`);
+    
+    moonMesh.position.set(initialMoonDistance, 0, 0); 
+    moonPivot.add(moonMesh); 
+    earthSystemGroup.add(moonPivot); // Add moon's pivot to Earth system group
+
+    // Create Moon's orbit line with the realistic distance
+    const moonOrbitLine = createOrbitLine(initialMoonDistance, 0, 0, 0, 0, 64, 0x888888, 0.3);
+    moonPivot.add(moonOrbitLine); // Add orbit line as a child of the pivot, so it rotates with the moon
 
     moonOrbitData.set(earthSystemGroup, { 
-      pivot: moonPivot, // For moon's orbit
+      pivot: moonPivot, 
       moon: moonMesh,
-      earthSpinner: axialSpinGroup // Corrected: Store the new axialSpinGroup as earthSpinner
+      earthSpinner: axialSpinGroup, 
+      initialMoonDistance: initialMoonDistance, // Store the realistic distance
+      orbitLine: moonOrbitLine // Store the reference to the moon's orbit line
     });
-
-    const moonOrbitLine = createOrbitLine(12.0, 0, 0, 0, 0, 128, 0xffffff, 0.3); // Moon orbit (original value)
-    earthSystemGroup.add(moonOrbitLine); // Add orbit line to the main system group
 
     earthSystemGroup.position.copy(position); // Position the whole system
     shapes.push(earthSystemGroup);

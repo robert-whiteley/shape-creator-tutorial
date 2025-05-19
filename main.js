@@ -476,9 +476,22 @@ if (scalePlanetsButton) {
           }
 
           // 2. Scale Moon orbit around Earth
-          const newMoonOrbitRadiusAroundEarth = 0.42 * currentSunDisplayRadius; // 1.5 * Earth's new diameter (0.28 * currentSunDisplayRadius)
-          moonPivot.position.x = newMoonOrbitRadiusAroundEarth; // Assuming x is the distance component for moonPivot
-          earthDataForMoon.initialMoonDistance = newMoonOrbitRadiusAroundEarth; // Update for consistency if used elsewhere
+          // Reverting to a "natural" scaled orbit: 3x Earth's new visual radius, without the extra 0.1 compression factor.
+          // Earth new visual radius = (0.28 * currentSunDisplayRadius) / 2.0 = 0.14 * currentSunDisplayRadius
+          // New Moon Orbit = 3.0 * (0.14 * currentSunDisplayRadius) = 0.42 * currentSunDisplayRadius
+          const newMoonOrbitRadiusAroundEarth = 0.42 * currentSunDisplayRadius;
+          console.log(`New Moon orbit radius target (proportional, uncompressed by initial 0.1 factor): 0.42 * ${currentSunDisplayRadius.toFixed(3)} = ${newMoonOrbitRadiusAroundEarth.toFixed(4)}`);
+          
+          // Set moonMesh position relative to its pivot
+          if (moonMesh) {
+            moonMesh.position.set(newMoonOrbitRadiusAroundEarth, 0, 0);
+            console.log(`Set Moon mesh position to x: ${newMoonOrbitRadiusAroundEarth.toFixed(2)} relative to its pivot.`);
+          } else {
+            console.warn("Moon mesh not found for repositioning orbit.");
+          }
+          
+          // Update for consistency if used elsewhere, though not directly for animation distance here
+          earthDataForMoon.initialMoonDistance = newMoonOrbitRadiusAroundEarth; 
           
           // 3. Redraw Moon's orbit line
           planetGroup.remove(oldMoonOrbitLine); // Orbit line is child of Earth's group
